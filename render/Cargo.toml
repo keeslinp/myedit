@@ -1,0 +1,12 @@
+[package]
+name = "render"
+version = "0.1.0"
+authors = ["Pearce Keesling <pearce.keesling@lifeomic.com>"]
+edition = "2018"
+
+[lib]
+name = "render"
+crate-type = ["dylib"]
+
+[dependencies]
+termion = "1.5.3"
