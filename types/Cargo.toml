@@ -1,12 +1,10 @@
 [package]
-name = "core"
+name = "types"
 version = "0.1.0"
 authors = ["Pearce Keesling <pearce.keesling@lifeomic.com>"]
 edition = "2018"
 
 [dependencies]
-libloading = "0.5.1"
-notify = "4.0.12"
-types = { path = "../types" }
 ropey = "1.0.1"
+notify = "4.0.12"
 termion = "1.5.3"

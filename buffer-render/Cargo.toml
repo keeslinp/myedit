@@ -5,8 +5,9 @@ authors = ["Pearce Keesling <pearce.keesling@lifeomic.com>"]
 edition = "2018"
 
 [lib]
-name = "render"
+name = "bufferrender"
 crate-type = ["dylib"]
 
 [dependencies]
 termion = "1.5.3"
+types = { path = "../types" }
