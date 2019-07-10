@@ -1,21 +1,24 @@
 use libloading::os::unix::Symbol;
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
+use ropey::Rope;
 use std::collections::HashMap;
 use std::{
     fs, path,
     sync::mpsc::{channel, Sender},
     thread, time,
 };
-use types::{GlobalData, Msg, Mode};
-use ropey::Rope;
 use termion::raw::IntoRawMode;
+use types::{BackBuffer, Cell, GlobalData, Mode, Msg, Utils};
+
+mod utils;
+mod back_buffer;
 
 #[derive(Debug)]
 struct DynLib {
     lib: libloading::Library,
-    render_fn: Symbol<extern "C" fn(&GlobalData)>,
-    update_fn: Symbol<extern "C" fn(&mut GlobalData, &Msg)>,
-    init_fn: Symbol<extern "C" fn(&mut GlobalData)>,
+    render_fn: Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils)>,
+    update_fn: Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils)>,
+    init_fn: Symbol<extern "C" fn(&mut GlobalData, &Utils)>,
 }
 
 fn load_lib(path: &path::PathBuf) -> DynLib {
@@ -29,11 +32,11 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
     fs::copy(path, copy_path.clone()).expect("copying lib");
     unsafe {
         let lib = libloading::Library::new(copy_path).expect("loading lib");
-        let render_fn: libloading::Symbol<extern "C" fn(&GlobalData)> =
+        let render_fn: libloading::Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils)> =
             lib.get(b"render").expect("loading render function");
-        let update_fn: libloading::Symbol<extern "C" fn(&mut GlobalData, &Msg)> =
+        let update_fn: libloading::Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils)> =
             lib.get(b"update").expect("loading update function");
-        let init_fn: libloading::Symbol<extern "C" fn(&mut GlobalData)> =
+        let init_fn: libloading::Symbol<extern "C" fn(&mut GlobalData, &Utils)> =
             lib.get(b"init").expect("loading init function");
         DynLib {
             render_fn: render_fn.into_raw(),
@@ -74,7 +77,7 @@ fn setup_watcher(msg_sender: Sender<Msg>) -> RecommendedWatcher {
             msg_sender.send(Msg::LibraryEvent(file_event)).unwrap();
         }
     });
-    watcher(tx, time::Duration::from_secs(1)).unwrap()
+    watcher(tx, time::Duration::from_millis(100)).unwrap()
 }
 
 fn setup_event_handler(msg_sender: Sender<Msg>) {
@@ -92,6 +95,7 @@ fn setup_event_handler(msg_sender: Sender<Msg>) {
 
 fn main() {
     let mut global_data = initial_state();
+    let utils = utils::build_utils();
     let (msg_sender, msg_receiver) = channel::<Msg>();
     let mut watcher = setup_watcher(msg_sender.clone());
     let mut libraries: HashMap<String, DynLib> = load_libs(&mut watcher);
@@ -105,7 +109,7 @@ fn main() {
                     let key = path.file_name().unwrap().to_str().unwrap();
                     libraries.remove(key);
                     let lib = load_lib(path);
-                    (*lib.init_fn)(&mut global_data);
+                    (*lib.init_fn)(&mut global_data, &utils);
                     libraries.insert(key.to_string(), lib);
                 }
                 _ => {}
@@ -114,18 +118,20 @@ fn main() {
                 use termion::event::{Event, Key};
                 match evt {
                     Event::Key(Key::Ctrl('c')) => return,
-                    _ => {},
+                    _ => {}
                 }
-
             }
             _ => {} // handled in libs
         }
 
         for (_path, lib) in libraries.iter() {
-            (*lib.update_fn)(&mut global_data, &msg);
+            (*lib.update_fn)(&mut global_data, &msg, &utils);
         }
+        let mut back_buffer = back_buffer::create_back_buffer();
+
         for (_path, lib) in libraries.iter() {
-            (*lib.render_fn)(&global_data);
+            (*lib.render_fn)(&global_data, &mut back_buffer, &utils);
         }
+        back_buffer::update_stdout(&back_buffer);
     }
 }
