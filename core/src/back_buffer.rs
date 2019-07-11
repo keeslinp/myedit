@@ -32,30 +32,33 @@ pub fn write_to_buffer(
     }
 }
 
-pub fn update_stdout(new_buffer: &BackBuffer) {
+pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer) {
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
-    use termion::{ style::Reset, cursor::{HideCursor, Right, Goto}};
+    use termion::{ style::Reset, cursor::{HideCursor, Right, Goto, Save, Restore, Show}};
     let mut writer = HideCursor::from(handle);
-    let mut x = 0;
-    let mut y = 0;
+    let mut x = 1;
+    let mut y = 1;
+    write!(writer, "{}", Save);
     // return;
-    write!(writer, "{}{}", Goto(1, 1), Reset);
-    for cell in new_buffer.cells.iter() {
-        if let Some(c) = cell.value {
-            if c == '\n' {
+    for (old_cell, new_cell) in old_buffer.cells.iter().zip(new_buffer.cells.iter()) {
+        if (old_cell != new_cell) {
+            write!(writer, "{}{}", Goto(x, y), Reset);
+            if let Some(c) = new_cell.value {
+                if c == '\n' {
+                }
+                write!(writer, "{}", c);
+            } else {
+                write!(writer, " ");
             }
-            write!(writer, "{}", c);
-        } else {
-            write!(writer, " ");
         }
         x += 1;
         if x >= new_buffer.dim.w {
             x = 0;
             y += 1;
-            write!(writer, "{}", Goto(1, y + 1));
         }
     }
+    write!(writer, "{}{}", Restore, Show);
     writer.flush().unwrap();
 }
 

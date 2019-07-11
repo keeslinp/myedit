@@ -8,7 +8,7 @@ use std::{
     thread, time,
 };
 use termion::raw::IntoRawMode;
-use types::{BackBuffer, Cell, GlobalData, Mode, Msg, Utils};
+use types::{BackBuffer, Cell, GlobalData, Mode, Msg, Utils, Cursor, Point};
 
 mod utils;
 mod back_buffer;
@@ -67,6 +67,12 @@ fn initial_state() -> GlobalData {
     GlobalData {
         buffer: None,
         mode: Mode::Normal,
+        cursor: Cursor {
+            position: Point {
+                x: 1,
+                y: 1,
+            }
+        },
     }
 }
 
@@ -99,8 +105,10 @@ fn main() {
     let (msg_sender, msg_receiver) = channel::<Msg>();
     let mut watcher = setup_watcher(msg_sender.clone());
     let mut libraries: HashMap<String, DynLib> = load_libs(&mut watcher);
+    let mut back_buffer = back_buffer::create_back_buffer();
     msg_sender.send(Msg::LoadFile("test_file.rs".into()));
     setup_event_handler(msg_sender.clone());
+    println!("{}", termion::clear::All);
     for msg in msg_receiver.iter() {
         use Msg::*;
         match msg {
@@ -127,11 +135,12 @@ fn main() {
         for (_path, lib) in libraries.iter() {
             (*lib.update_fn)(&mut global_data, &msg, &utils);
         }
-        let mut back_buffer = back_buffer::create_back_buffer();
+        let mut new_back_buffer = back_buffer::create_back_buffer();
 
         for (_path, lib) in libraries.iter() {
-            (*lib.render_fn)(&global_data, &mut back_buffer, &utils);
+            (*lib.render_fn)(&global_data, &mut new_back_buffer, &utils);
         }
-        back_buffer::update_stdout(&back_buffer);
+        back_buffer::update_stdout(&back_buffer, &new_back_buffer);
+        back_buffer = new_back_buffer;
     }
 }

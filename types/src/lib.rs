@@ -6,6 +6,12 @@ use termion::event::Event;
 pub struct GlobalData {
     pub buffer: Option<Buffer>,
     pub mode: Mode,
+    pub cursor: Cursor,
+}
+
+#[derive(Debug)]
+pub struct Cursor {
+    pub position: Point,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
