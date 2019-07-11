@@ -30,6 +30,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg) {
                                 'q' => {
                                     std::process::exit(0);
                                 },
+                                // TODO: Do this through messages
                                 'l' => {
                                     global_data.cursor.position.x += 1
                                 },
