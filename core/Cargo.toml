@@ -11,3 +11,4 @@ types = { path = "../types" }
 ropey = "1.0.1"
 termion = "1.5.3"
 crossbeam-channel = "0.3.8"
+structopt = "0.2.18"

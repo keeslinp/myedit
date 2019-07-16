@@ -52,7 +52,7 @@ pub struct BackBuffer {
 #[derive(Debug, Default)]
 pub struct Buffer {
     pub rope: Rope,
-    pub source: String,
+    pub source: std::path::PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,8 +89,8 @@ pub enum JumpType {
 
 #[derive(Debug)]
 pub enum Msg {
-    LoadFile(String),
-    WriteBuffer(String),
+    LoadFile(std::path::PathBuf),
+    WriteBuffer(std::path::PathBuf),
     LibraryEvent(DebouncedEvent),
     StdinEvent(Event),
     MoveCursor(Direction),

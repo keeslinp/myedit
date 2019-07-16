@@ -94,7 +94,18 @@ fn setup_event_handler(msg_sender: Sender<Msg>) {
     });
 }
 
+use structopt::StructOpt;
+use std::path::PathBuf;
+#[derive(Debug, StructOpt)]
+#[structopt(name = "myedit", about = "Personalized text editor and dev environment")]
+struct Opt {
+    /// Input file
+    #[structopt(parse(from_os_str))]
+    input: std::path::PathBuf,
+}
+
 fn main() {
+    let opt = Opt::from_args();
     let mut global_data = initial_state();
     let utils = utils::build_utils();
     let (msg_sender, msg_receiver) = unbounded::<Msg>();
@@ -102,7 +113,7 @@ fn main() {
     let mut libraries: HashMap<String, DynLib> = load_libs(&mut watcher);
 
     let mut back_buffer = back_buffer::create_back_buffer();
-    msg_sender.send(Msg::LoadFile("test_file.rs".into()));
+    msg_sender.send(Msg::LoadFile(opt.input));
     setup_event_handler(msg_sender.clone());
     println!("{}", termion::clear::All);
     let clone = msg_sender.clone();

@@ -3,7 +3,7 @@ use types::{Buffer, GlobalData, Msg};
 #[no_mangle]
 pub fn render(global_data: &GlobalData) {}
 
-fn load_buffer(global_data: &mut GlobalData, file_path: String) {
+fn load_buffer(global_data: &mut GlobalData, file_path: std::path::PathBuf) {
     global_data.buffer = Buffer {
         rope: Rope::from_reader(std::fs::File::open(&file_path).unwrap()).unwrap(),
         source: file_path,
@@ -18,7 +18,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg) {
             load_buffer(global_data, file_path.clone());
         },
         WriteBuffer(path) => {
-            let mut file = std::fs::File::create(path.as_str()).expect("opening file");
+            let mut file = std::fs::File::create(path).expect("opening file");
             global_data.buffer.rope.write_to(file).expect("writing to file");
         },
         _ => {}
