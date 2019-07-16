@@ -4,9 +4,16 @@ use termion::event::Event;
 
 #[derive(Debug)]
 pub struct GlobalData {
-    pub buffer: Option<Buffer>,
+    pub buffer: Buffer,
     pub mode: Mode,
     pub cursor: Cursor,
+    pub command_buffer: CommandBuffer,
+}
+
+#[derive(Debug, Default)]
+pub struct CommandBuffer {
+    pub text: String,
+    pub index: usize,
 }
 
 #[derive(Debug)]
@@ -42,23 +49,57 @@ pub struct BackBuffer {
     pub cells: Vec<Cell>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Buffer {
     pub rope: Rope,
     pub source: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Mode {
     Normal,
     Insert,
+    Command,
+}
+
+#[derive(Debug)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+#[derive(Debug)]
+pub enum DeleteDirection {
+    Before,
+    After,
+}
+
+#[derive(Debug)]
+pub enum JumpType {
+    EndOfLine,
+    StartOfLine,
+    BeginningOfBuffer,
+    EndOfBuffer,
+    StartOfWord,
+    EndOfWord,
+    MatchingBrace,
 }
 
 #[derive(Debug)]
 pub enum Msg {
     LoadFile(String),
+    WriteBuffer(String),
     LibraryEvent(DebouncedEvent),
     StdinEvent(Event),
+    MoveCursor(Direction),
+    Quit,
+    ChangeMode(Mode),
+    InsertChar(char),
+    DeleteChar(DeleteDirection),
+    Jump(JumpType),
+    RunCommand,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -67,12 +108,13 @@ pub struct Point {
     pub y: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Rect {
     pub w: u16,
     pub h: u16,
 }
 
 pub struct Utils {
-    pub write_to_buffer: fn(&mut BackBuffer, &Point, &str, Option<Style>, Option<Color>, Option<Color>),
+    pub write_to_buffer:
+        fn(&mut BackBuffer, &Point, &str, Option<Style>, Option<Color>, Option<Color>),
 }

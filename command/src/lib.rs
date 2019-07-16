@@ -1,0 +1,74 @@
+use ropey::Rope;
+use std::sync::mpsc::Sender;
+use termion::{
+    cursor::{Goto, Show},
+    event::{Event, Key},
+    style, terminal_size,
+};
+use types::{BackBuffer, DeleteDirection, Direction, GlobalData, Mode, Msg, Point, Utils, JumpType};
+
+#[no_mangle]
+pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Utils) {
+    let (cols, rows) = terminal_size().unwrap();
+    let status_row_y = rows - 1;
+    if global_data.mode == Mode::Command {
+        (utils.write_to_buffer)(
+            back_buffer,
+            &Point {
+                x: 0,
+                y: rows - 1,
+            },
+            &format!(":{}", global_data.command_buffer.text),
+            None,
+            None,
+            None,
+        );
+        println!(
+            "{}{}",
+            Show,
+            Goto(global_data.command_buffer.index as u16 + 2, status_row_y)
+        );
+    }
+    // print!("{}{} {:?} {}", style::Invert, Goto(cols - 10, rows), global_data.mode, style::NoInvert);
+}
+
+fn get_ropey_index_from_cursor(position: &Point, rope: &Rope) -> usize {
+    rope.line_to_char(position.y as usize) + position.x as usize - 1
+}
+
+fn get_new_x_position(position: &Point, rope: &Rope) -> u16 {
+    std::cmp::min(position.x, rope.line(position.y as usize).len_chars() as u16)
+}
+
+#[no_mangle]
+pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: &Box<Fn(Msg)>) {
+    use Msg::*;
+    match msg {
+        Msg::RunCommand => {
+            match global_data.command_buffer.text.as_str() {
+                "w" => {
+                    send_msg(Msg::WriteBuffer(global_data.buffer.source.clone()));
+                },
+                "q" => send_msg(Msg::Quit),
+                "wq" => {
+                    send_msg(Msg::WriteBuffer(global_data.buffer.source.clone()));
+                    send_msg(Msg::Quit);
+                },
+                _ => {
+                    // Unknown command
+                },
+            }
+            send_msg(Msg::ChangeMode(Mode::Normal));
+        },
+        Msg::ChangeMode(mode) => {
+            if *mode == Mode::Command {
+                global_data.command_buffer.text = "".into();
+                global_data.command_buffer.index = 0;
+            }
+        },
+        _ => {},
+    };
+}
+
+#[no_mangle]
+pub fn init(global_data: &mut GlobalData) {}

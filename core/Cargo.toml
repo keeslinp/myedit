@@ -10,3 +10,4 @@ notify = "4.0.12"
 types = { path = "../types" }
 ropey = "1.0.1"
 termion = "1.5.3"
+crossbeam-channel = "0.3.8"

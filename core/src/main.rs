@@ -1,23 +1,19 @@
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use libloading::os::unix::Symbol;
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
-use ropey::Rope;
 use std::collections::HashMap;
-use std::{
-    fs, path,
-    sync::mpsc::{channel, Sender},
-    thread, time,
-};
+use std::default::Default;
+use std::{fs, path, time};
 use termion::raw::IntoRawMode;
-use types::{BackBuffer, Cell, GlobalData, Mode, Msg, Utils, Cursor, Point};
-
-mod utils;
+use types::{BackBuffer, Cursor, GlobalData, Mode, Msg, Point, Utils};
 mod back_buffer;
+mod utils;
 
 #[derive(Debug)]
 struct DynLib {
     lib: libloading::Library,
     render_fn: Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils)>,
-    update_fn: Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils)>,
+    update_fn: Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Msg)>)>,
     init_fn: Symbol<extern "C" fn(&mut GlobalData, &Utils)>,
 }
 
@@ -34,8 +30,9 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
         let lib = libloading::Library::new(copy_path).expect("loading lib");
         let render_fn: libloading::Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils)> =
             lib.get(b"render").expect("loading render function");
-        let update_fn: libloading::Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils)> =
-            lib.get(b"update").expect("loading update function");
+        let update_fn: libloading::Symbol<
+            extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Msg)>),
+        > = lib.get(b"update").expect("loading update function");
         let init_fn: libloading::Symbol<extern "C" fn(&mut GlobalData, &Utils)> =
             lib.get(b"init").expect("loading init function");
         DynLib {
@@ -65,19 +62,17 @@ fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
 
 fn initial_state() -> GlobalData {
     GlobalData {
-        buffer: None,
+        buffer: Default::default(),
+        command_buffer: Default::default(),
         mode: Mode::Normal,
         cursor: Cursor {
-            position: Point {
-                x: 1,
-                y: 1,
-            }
+            position: Point { x: 1, y: 1 },
         },
     }
 }
 
 fn setup_watcher(msg_sender: Sender<Msg>) -> RecommendedWatcher {
-    let (tx, rx) = channel();
+    let (tx, rx) = std::sync::mpsc::channel(); // This is std so that file watcher is happy
     std::thread::spawn(move || {
         for file_event in rx.iter() {
             msg_sender.send(Msg::LibraryEvent(file_event)).unwrap();
@@ -102,13 +97,17 @@ fn setup_event_handler(msg_sender: Sender<Msg>) {
 fn main() {
     let mut global_data = initial_state();
     let utils = utils::build_utils();
-    let (msg_sender, msg_receiver) = channel::<Msg>();
+    let (msg_sender, msg_receiver) = unbounded::<Msg>();
     let mut watcher = setup_watcher(msg_sender.clone());
     let mut libraries: HashMap<String, DynLib> = load_libs(&mut watcher);
+
     let mut back_buffer = back_buffer::create_back_buffer();
     msg_sender.send(Msg::LoadFile("test_file.rs".into()));
     setup_event_handler(msg_sender.clone());
     println!("{}", termion::clear::All);
+    let clone = msg_sender.clone();
+    // This is witchcraft to account for channels not liking getting moved across dynamic boundaries :/
+    let msg_handler: Box<Fn(Msg)> = Box::new(move |msg| clone.send(msg).unwrap());
     for msg in msg_receiver.iter() {
         use Msg::*;
         match msg {
@@ -129,12 +128,18 @@ fn main() {
                     _ => {}
                 }
             }
+            Quit => {
+                return;
+            }
             _ => {} // handled in libs
         }
 
-        for (_path, lib) in libraries.iter() {
-            (*lib.update_fn)(&mut global_data, &msg, &utils);
+        for (path, lib) in libraries.iter() {
+            (*lib.update_fn)(&mut global_data, &msg, &utils, &msg_handler);
         }
+        // for (path, lib) in libraries.iter() {
+        //     (*lib.update_fn)(&mut global_data, &msg, &utils, other_send.clone());
+        // }
         let mut new_back_buffer = back_buffer::create_back_buffer();
 
         for (_path, lib) in libraries.iter() {

@@ -1,5 +1,5 @@
-use types::{BackBuffer, Cell, Color, Point, Rect, Style};
 use std::io::Write;
+use types::{BackBuffer, Cell, Color, Point, Rect, Style};
 
 pub fn index_from_point(back_buffer: &BackBuffer, p: &Point) -> usize {
     (p.y * back_buffer.dim.w + p.x) as usize
@@ -35,21 +35,23 @@ pub fn write_to_buffer(
 pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer) {
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
-    use termion::{ style::Reset, cursor::{HideCursor, Right, Goto, Save, Restore, Show}};
+    use termion::{
+        cursor::{Goto, HideCursor, Restore, Save, Show},
+        style::Reset,
+    };
     let mut writer = HideCursor::from(handle);
     let mut x = 1;
     let mut y = 1;
-    write!(writer, "{}", Save);
+    write!(writer, "{}", Save).unwrap();
     // return;
     for (old_cell, new_cell) in old_buffer.cells.iter().zip(new_buffer.cells.iter()) {
-        if (old_cell != new_cell) {
-            write!(writer, "{}{}", Goto(x, y), Reset);
+        if old_cell != new_cell {
+            write!(writer, "{}{}", Goto(x, y), Reset).unwrap();
             if let Some(c) = new_cell.value {
-                if c == '\n' {
-                }
-                write!(writer, "{}", c);
+                if c == '\n' {}
+                write!(writer, "{}", c).unwrap();
             } else {
-                write!(writer, " ");
+                write!(writer, " ").unwrap();
             }
         }
         x += 1;
@@ -58,7 +60,7 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer) {
             y += 1;
         }
     }
-    write!(writer, "{}{}", Restore, Show);
+    write!(writer, "{}{}", Restore, Show).unwrap();
     writer.flush().unwrap();
 }
 

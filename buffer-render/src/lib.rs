@@ -1,19 +1,25 @@
-use types::{GlobalData, Msg, Utils, Point, BackBuffer};
-
+use std::sync::mpsc::Sender;
+use types::{BackBuffer, GlobalData, Msg, Point, Utils};
 
 #[no_mangle]
 pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Utils) {
-    if let Some(ref buffer) = global_data.buffer {
-        for (index, line) in buffer.rope.lines().enumerate() {
-            (utils.write_to_buffer)(back_buffer, &Point { x: 0, y: index as u16 }, line.as_str().unwrap_or(""), None, None, None);
-            // write!(lock, "{}{}{}", termion::cursor::Goto(1, index as u16), termion::clear::CurrentLine, line.as_str().unwrap_or(""));
-        }
+    for (index, line) in global_data.buffer.rope.lines().enumerate() {
+        (utils.write_to_buffer)(
+            back_buffer,
+            &Point {
+                x: 0,
+                y: index as u16,
+            },
+            line.as_str().unwrap_or(""),
+            None,
+            None,
+            None,
+        );
     }
 }
 
 #[no_mangle]
-pub fn update(_global_data: &GlobalData, _msg: &Msg, _utils: &Utils) {}
+pub fn update(_global_data: &GlobalData, _msg: &Msg, _utils: &Utils, _msg_sender: &Sender<Msg>) {}
 
 #[no_mangle]
-pub fn init(_global_data: &mut GlobalData) {
-}
+pub fn init(_global_data: &mut GlobalData) {}
