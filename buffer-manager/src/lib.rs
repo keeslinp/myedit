@@ -1,5 +1,5 @@
 use ropey::Rope;
-use types::{Buffer, GlobalData, Msg};
+use types::{Buffer, Cmd, GlobalData, Msg};
 #[no_mangle]
 pub fn render(global_data: &GlobalData) {}
 
@@ -13,19 +13,29 @@ fn load_buffer(global_data: &mut GlobalData, file_path: std::path::PathBuf) {
 
 #[no_mangle]
 pub fn update(global_data: &mut GlobalData, msg: &Msg) {
-    use Msg::*;
+    use Cmd::*;
     match msg {
-        LoadFile(file_path) => {
-            let maybe_index = global_data.buffers.iter().find(|(_index, buffer)| buffer.source == file_path.as_path()).map(|(index, _buffer)| index);
-            if let Some(index) = maybe_index {
-                global_data.current_buffer = index;
-            } else {
-                load_buffer(global_data, file_path.clone());
+        Msg::Cmd(cmd) => match cmd {
+            LoadFile(file_path) => {
+                let maybe_index = global_data
+                    .buffers
+                    .iter()
+                    .find(|(_index, buffer)| buffer.source == file_path.as_path())
+                    .map(|(index, _buffer)| index);
+                if let Some(index) = maybe_index {
+                    global_data.current_buffer = index;
+                } else {
+                    load_buffer(global_data, file_path.clone());
+                }
             }
-        },
-        WriteBuffer(path) => {
-            let mut file = std::fs::File::create(path).expect("opening file");
-            global_data.buffers[global_data.current_buffer].rope.write_to(file).expect("writing to file");
+            WriteBuffer(path) => {
+                let mut file = std::fs::File::create(path).expect("opening file");
+                global_data.buffers[global_data.current_buffer]
+                    .rope
+                    .write_to(file)
+                    .expect("writing to file");
+            }
+            _ => {}
         },
         _ => {}
     }

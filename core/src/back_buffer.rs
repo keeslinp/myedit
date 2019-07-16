@@ -34,7 +34,7 @@ pub fn write_to_buffer(
 
 pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer) {
     let stdout = std::io::stdout();
-    let mut handle = stdout.lock();
+    let handle = stdout.lock();
     use termion::{
         cursor::{Goto, HideCursor, Restore, Save, Show},
         style::Reset,

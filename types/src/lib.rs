@@ -1,7 +1,7 @@
+use generational_arena::{Arena, Index};
 use notify::DebouncedEvent;
 use ropey::Rope;
 use termion::event::Event;
-use generational_arena::{Arena, Index};
 
 #[derive(Debug)]
 pub struct GlobalData {
@@ -57,14 +57,14 @@ pub struct Buffer {
     pub source: std::path::PathBuf,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum Mode {
     Normal,
     Insert,
     Command,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum Direction {
     Left,
     Right,
@@ -72,13 +72,13 @@ pub enum Direction {
     Down,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum DeleteDirection {
     Before,
     After,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum JumpType {
     EndOfLine,
     StartOfLine,
@@ -89,12 +89,12 @@ pub enum JumpType {
     MatchingBrace,
 }
 
-#[derive(Debug)]
-pub enum Msg {
-    LoadFile(std::path::PathBuf),
-    WriteBuffer(std::path::PathBuf),
-    LibraryEvent(DebouncedEvent),
-    StdinEvent(Event),
+use rmp_serde::{Deserializer, Serializer};
+use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum Cmd {
     MoveCursor(Direction),
     Quit,
     ChangeMode(Mode),
@@ -102,6 +102,15 @@ pub enum Msg {
     DeleteChar(DeleteDirection),
     Jump(JumpType),
     RunCommand,
+    WriteBuffer(std::path::PathBuf),
+    LoadFile(std::path::PathBuf),
+}
+
+#[derive(Debug)]
+pub enum Msg {
+    LibraryEvent(DebouncedEvent),
+    StdinEvent(Event),
+    Cmd(Cmd),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

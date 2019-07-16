@@ -5,7 +5,9 @@ use termion::{
     event::{Event, Key},
     style, terminal_size,
 };
-use types::{BackBuffer, DeleteDirection, Direction, GlobalData, Mode, Msg, Point, Utils, JumpType};
+use types::{
+    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils,
+};
 
 #[no_mangle]
 pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Utils) {
@@ -14,10 +16,7 @@ pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Ut
     if global_data.mode == Mode::Command {
         (utils.write_to_buffer)(
             back_buffer,
-            &Point {
-                x: 0,
-                y: rows - 1,
-            },
+            &Point { x: 0, y: rows - 1 },
             &format!(":{}", global_data.command_buffer.text),
             None,
             None,
@@ -37,42 +36,66 @@ fn get_ropey_index_from_cursor(position: &Point, rope: &Rope) -> usize {
 }
 
 fn get_new_x_position(position: &Point, rope: &Rope) -> u16 {
-    std::cmp::min(position.x, rope.line(position.y as usize).len_chars() as u16)
+    std::cmp::min(
+        position.x,
+        rope.line(position.y as usize).len_chars() as u16,
+    )
 }
 
 #[no_mangle]
-pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: &Box<Fn(Msg)>) {
-    use Msg::*;
+pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: &Box<Fn(Cmd)>) {
+    use Cmd::*;
     match msg {
-        Msg::RunCommand => {
-            let mut command_words = global_data.command_buffer.text.split(" ");
-            match command_words.next() {
-                Some("w") => {
-                    let path = command_words.next().map(|file_path| std::path::PathBuf::from(file_path)).unwrap_or(global_data.buffers[global_data.current_buffer].source.clone());
-                    send_msg(Msg::WriteBuffer(path));
-                },
-                Some("e") => {
-                    let path = command_words.next().map(|file_path| std::path::PathBuf::from(file_path)).unwrap_or(global_data.buffers[global_data.current_buffer].source.clone());
-                    send_msg(Msg::LoadFile(path));
-                },
-                Some("q") => send_msg(Msg::Quit),
-                Some("wq") => {
-                    send_msg(Msg::WriteBuffer(global_data.buffers[global_data.current_buffer].source.clone()));
-                    send_msg(Msg::Quit);
-                },
-                _ => {
-                    // Unknown command
-                },
+        Msg::Cmd(cmd) => match cmd {
+            Cmd::RunCommand => {
+                let mut command_words = global_data.command_buffer.text.split(" ");
+                match command_words.next() {
+                    Some("w") => {
+                        let path = command_words
+                            .next()
+                            .map(|file_path| std::path::PathBuf::from(file_path))
+                            .unwrap_or(
+                                global_data.buffers[global_data.current_buffer]
+                                    .source
+                                    .clone(),
+                            );
+                        send_msg(Cmd::WriteBuffer(path));
+                    }
+                    Some("e") => {
+                        let path = command_words
+                            .next()
+                            .map(|file_path| std::path::PathBuf::from(file_path))
+                            .unwrap_or(
+                                global_data.buffers[global_data.current_buffer]
+                                    .source
+                                    .clone(),
+                            );
+                        send_msg(Cmd::LoadFile(path));
+                    }
+                    Some("q") => send_msg(Cmd::Quit),
+                    Some("wq") => {
+                        send_msg(Cmd::WriteBuffer(
+                            global_data.buffers[global_data.current_buffer]
+                                .source
+                                .clone(),
+                        ));
+                        send_msg(Cmd::Quit);
+                    }
+                    _ => {
+                        // Unknown command
+                    }
+                }
+                send_msg(Cmd::ChangeMode(Mode::Normal));
             }
-            send_msg(Msg::ChangeMode(Mode::Normal));
-        },
-        Msg::ChangeMode(mode) => {
-            if *mode == Mode::Command {
-                global_data.command_buffer.text = "".into();
-                global_data.command_buffer.index = 0;
+            Cmd::ChangeMode(mode) => {
+                if *mode == Mode::Command {
+                    global_data.command_buffer.text = "".into();
+                    global_data.command_buffer.index = 0;
+                }
             }
+            _ => {}
         },
-        _ => {},
+        _ => {}
     };
 }
 
