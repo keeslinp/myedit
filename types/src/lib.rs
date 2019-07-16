@@ -1,10 +1,12 @@
 use notify::DebouncedEvent;
 use ropey::Rope;
 use termion::event::Event;
+use generational_arena::{Arena, Index};
 
 #[derive(Debug)]
 pub struct GlobalData {
-    pub buffer: Buffer,
+    pub buffers: Arena<Buffer>,
+    pub current_buffer: Index,
     pub mode: Mode,
     pub cursor: Cursor,
     pub command_buffer: CommandBuffer,

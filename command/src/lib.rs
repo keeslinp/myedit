@@ -45,13 +45,19 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: 
     use Msg::*;
     match msg {
         Msg::RunCommand => {
-            match global_data.command_buffer.text.as_str() {
-                "w" => {
-                    send_msg(Msg::WriteBuffer(global_data.buffer.source.clone()));
+            let mut command_words = global_data.command_buffer.text.split(" ");
+            match command_words.next() {
+                Some("w") => {
+                    let path = command_words.next().map(|file_path| std::path::PathBuf::from(file_path)).unwrap_or(global_data.buffers[global_data.current_buffer].source.clone());
+                    send_msg(Msg::WriteBuffer(path));
                 },
-                "q" => send_msg(Msg::Quit),
-                "wq" => {
-                    send_msg(Msg::WriteBuffer(global_data.buffer.source.clone()));
+                Some("e") => {
+                    let path = command_words.next().map(|file_path| std::path::PathBuf::from(file_path)).unwrap_or(global_data.buffers[global_data.current_buffer].source.clone());
+                    send_msg(Msg::LoadFile(path));
+                },
+                Some("q") => send_msg(Msg::Quit),
+                Some("wq") => {
+                    send_msg(Msg::WriteBuffer(global_data.buffers[global_data.current_buffer].source.clone()));
                     send_msg(Msg::Quit);
                 },
                 _ => {

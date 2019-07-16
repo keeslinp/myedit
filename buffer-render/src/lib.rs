@@ -3,7 +3,7 @@ use types::{BackBuffer, GlobalData, Msg, Point, Utils};
 
 #[no_mangle]
 pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Utils) {
-    for (index, line) in global_data.buffer.rope.lines().enumerate() {
+    for (index, line) in global_data.buffers[global_data.current_buffer].rope.lines().enumerate() {
         (utils.write_to_buffer)(
             back_buffer,
             &Point {

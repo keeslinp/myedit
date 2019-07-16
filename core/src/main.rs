@@ -60,9 +60,15 @@ fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
         .collect()
 }
 
+
 fn initial_state() -> GlobalData {
+    use generational_arena::{Arena, Index};
+    let buffer = Default::default();
+    let mut arena = Arena::new();
+    let current_buffer = arena.insert(buffer);
     GlobalData {
-        buffer: Default::default(),
+        buffers: arena,
+        current_buffer,
         command_buffer: Default::default(),
         mode: Mode::Normal,
         cursor: Cursor {

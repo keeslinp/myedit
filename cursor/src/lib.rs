@@ -51,6 +51,7 @@ fn get_new_x_position(position: &Point, rope: &Rope) -> u16 {
 
 #[no_mangle]
 pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: &Box<Fn(Msg)>) {
+    let mut rope = &mut global_data.buffers[global_data.current_buffer].rope;
     use Msg::*;
     match msg {
         MoveCursor(dir) => {
@@ -92,7 +93,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: 
                     }
                     // Make sure we don't venture to nowhere
                     global_data.cursor.position.x =
-                        get_new_x_position(&global_data.cursor.position, &global_data.buffer.rope);
+                        get_new_x_position(&global_data.cursor.position, &rope);
                 }
             }
         }
@@ -110,9 +111,9 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: 
             _ => {
                 let index = get_ropey_index_from_cursor(
                     &global_data.cursor.position,
-                    &global_data.buffer.rope,
+                    &rope,
                 );
-                global_data.buffer.rope.insert_char(index, *c);
+                rope.insert_char(index, *c);
                 if *c == '\n' {
                     send_msg(MoveCursor(Direction::Down));
                 } else {
@@ -134,14 +135,14 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: 
                 },
                 _ => {
                     let index =
-                        get_ropey_index_from_cursor(&global_data.cursor.position, &global_data.buffer.rope);
+                        get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
                     match dir {
                         DeleteDirection::After => {
-                            global_data.buffer.rope.remove(index..index + 1);
+                            rope.remove(index..index + 1);
                         }
                         DeleteDirection::Before => {
                             if (global_data.cursor.position.x > 1) {
-                                global_data.buffer.rope.remove(index - 1..index);
+                                rope.remove(index - 1..index);
                                 global_data.cursor.position.x -= 1
                             }
                         }
@@ -155,7 +156,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_msg: 
                 EndOfLine => {
                     let mut position = &mut global_data.cursor.position;
                     position.x = global_data
-                        .buffer
+                        .buffers[global_data.current_buffer]
                         .rope
                         .line(position.y as usize)
                         .len_chars() as u16
