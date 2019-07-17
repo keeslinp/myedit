@@ -5,7 +5,7 @@ pub fn render(global_data: &GlobalData) {}
 
 fn load_buffer(global_data: &mut GlobalData, file_path: std::path::PathBuf) {
     let new_buffer = global_data.buffers.insert(Buffer {
-        rope: Rope::from_reader(std::fs::File::open(&file_path).unwrap()).unwrap(),
+        rope: Rope::from_reader(std::fs::File::open(&file_path).expect("loading file")).expect("building rope"),
         source: file_path,
     });
     global_data.current_buffer = new_buffer;
@@ -34,6 +34,15 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg) {
                     .rope
                     .write_to(file)
                     .expect("writing to file");
+            }
+            SearchFiles => {
+                use std::process::Command;
+                // Command::new("tmux")
+                //     .args(&["split-pane", "sk"])
+                //     .spawn().unwrap();
+                Command::new("tmux")
+                    .args(&["split-pane", "sk | xargs -0 -I {} cargo run -- --target test_client --command \"edit {}\""])
+                    .spawn().expect("spawning sk in tmux pane");
             }
             _ => {}
         },

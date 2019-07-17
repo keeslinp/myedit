@@ -45,6 +45,10 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd:
                         }
                         _ => {}
                     },
+                    Event::Key(Key::Ctrl(c)) => match c {
+                        'p' => send_cmd(Cmd::SearchFiles),
+                        _ => {},
+                    },
                     _ => {}
                 },
                 Mode::Insert => match evt {

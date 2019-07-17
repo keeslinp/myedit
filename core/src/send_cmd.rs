@@ -17,7 +17,7 @@ pub fn send(target: &str, command: &str) {
     match chunks.next() {
         Some("edit") => {
             if let Some(file) = chunks.next() {
-                send_over_socket(socket, Cmd::LoadFile(std::path::PathBuf::from(file)));
+                send_over_socket(socket, Cmd::LoadFile(std::path::PathBuf::from(file.trim())));
             } else {
                 panic!("Need to pass file with edit: eg \"edit test.rs\"");
             }

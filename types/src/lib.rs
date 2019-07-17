@@ -104,6 +104,7 @@ pub enum Cmd {
     RunCommand,
     WriteBuffer(std::path::PathBuf),
     LoadFile(std::path::PathBuf),
+    SearchFiles,
 }
 
 #[derive(Debug)]
