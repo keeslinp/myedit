@@ -9,7 +9,7 @@ pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Ut
         .rope
         .lines()
         .skip(buffer.start_line)
-        .take(rows as usize)
+        .take(rows as usize - 1)
         .enumerate()
     {
         (utils.write_to_buffer)(

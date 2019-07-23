@@ -16,6 +16,9 @@ pub fn write_to_buffer(
     // println!("({}, {}){}", start_point.x, start_point.y, value);
     let mut p = start_point.clone();
     for c in value.chars() {
+        if p.y >= back_buffer.dim.h {
+            break;
+        }
         if c == '\n' {
             p.x = 0;
             p.y += 1;
@@ -41,7 +44,7 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer) {
     };
     let mut writer = HideCursor::from(handle);
     let mut x = 1;
-    let mut y = 1;
+    let mut y = 2;
     write!(writer, "{}", Save).unwrap();
     // return;
     for (old_cell, new_cell) in old_buffer.cells.iter().zip(new_buffer.cells.iter()) {

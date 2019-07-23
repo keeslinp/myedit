@@ -32,7 +32,7 @@ pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Ut
         println!(
             "{}{}",
             Show,
-            Goto(global_data.cursor.position.x, global_data.cursor.position.y)
+            Goto(global_data.cursor.position.x, global_data.cursor.position.y + 1 - global_data.buffers[global_data.current_buffer].start_line as u16)
         );
     }
     // print!("{}{} {:?} {}", style::Invert, Goto(cols - 10, rows), global_data.mode, style::NoInvert);
@@ -51,7 +51,8 @@ fn get_new_x_position(position: &Point, rope: &Rope) -> u16 {
 
 #[no_mangle]
 pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: &Box<Fn(Cmd)>) {
-    let mut rope = &mut global_data.buffers[global_data.current_buffer].rope;
+    let current_buffer = &mut global_data.buffers[global_data.current_buffer];
+    let rope = &mut current_buffer.rope;
     use Cmd::*;
     match cmd {
         Msg::Cmd(cmd) => match cmd {
@@ -87,9 +88,20 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
                                 if global_data.cursor.position.y > 1 {
                                     global_data.cursor.position.y -= 1;
                                 }
+                                if (global_data.cursor.position.y as usize) < current_buffer.start_line
+                                {
+                                    current_buffer.start_line -= 1;
+                                }
                             }
                             Down => {
-                                global_data.cursor.position.y += 1;
+                                if (global_data.cursor.position.y as usize) < rope.len_lines() {
+                                    global_data.cursor.position.y += 1;
+                                }
+                                let (_, rows) = terminal_size().expect("getting terminal size");
+                                if (global_data.cursor.position.y as usize) >= current_buffer.start_line + (rows as usize - 1)
+                                {
+                                    current_buffer.start_line += 1;
+                                }
                             }
                         }
                         // Make sure we don't venture to nowhere
@@ -137,7 +149,7 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
                             rope.remove(index..index + 1);
                         }
                         DeleteDirection::Before => {
-                            if (global_data.cursor.position.x > 1) {
+                            if global_data.cursor.position.x > 1 {
                                 rope.remove(index - 1..index);
                                 global_data.cursor.position.x -= 1
                             }

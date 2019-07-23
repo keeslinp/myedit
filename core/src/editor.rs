@@ -45,9 +45,15 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
     }
 }
 
+#[cfg(debug_assertion)]
+const LIB_LOC: &'static str = "./target/debug";
+
+#[cfg(not(debug_assertion))]
+const LIB_LOC: &'static str = "./target/release";
+
 fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
     use std::fs::read_dir;
-    read_dir("./target/debug")
+    read_dir(LIB_LOC)
         .expect("reading lib folder")
         .map(|dir_buff| dir_buff.unwrap().path())
         .filter(|path| path.extension().map(|ext| ext == "dylib").unwrap_or(false))
