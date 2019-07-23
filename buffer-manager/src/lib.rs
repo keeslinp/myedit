@@ -7,6 +7,7 @@ fn load_buffer(global_data: &mut GlobalData, file_path: std::path::PathBuf) {
     let new_buffer = global_data.buffers.insert(Buffer {
         rope: Rope::from_reader(std::fs::File::open(&file_path).expect("loading file")).expect("building rope"),
         source: file_path,
+        start_line: 0,
     });
     global_data.current_buffer = new_buffer;
 }

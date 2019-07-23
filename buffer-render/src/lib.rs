@@ -3,9 +3,13 @@ use types::{BackBuffer, GlobalData, Msg, Point, Utils};
 
 #[no_mangle]
 pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Utils) {
-    for (index, line) in global_data.buffers[global_data.current_buffer]
+    let buffer = &global_data.buffers[global_data.current_buffer];
+    let (cols, rows) = termion::terminal_size().unwrap();
+    for (index, line) in buffer
         .rope
         .lines()
+        .skip(buffer.start_line)
+        .take(rows as usize)
         .enumerate()
     {
         (utils.write_to_buffer)(

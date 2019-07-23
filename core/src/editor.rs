@@ -100,7 +100,7 @@ fn setup_event_handler(msg_sender: Sender<Msg>) {
     });
 }
 
-pub fn setup_external_socket(msg_sender: Sender<Msg>) {
+fn setup_external_socket(msg_sender: Sender<Msg>) {
     use std::io::Read;
     use std::os::unix::net::UnixListener;
     std::thread::spawn(move || {
@@ -124,6 +124,17 @@ pub fn setup_external_socket(msg_sender: Sender<Msg>) {
     });
 }
 
+fn setup_signals_handler(msg_sender: Sender<Msg>) {
+    use signal_hook::iterator::Signals;
+    use signal_hook::SIGWINCH;
+    let signals = Signals::new(&[SIGWINCH]).unwrap();
+    std::thread::spawn(move || {
+        for _ in signals.forever() {
+            msg_sender.send(Msg::Cmd(Cmd::CleanRender));
+        }
+    });
+}
+
 pub fn start(file: Option<std::path::PathBuf>) {
     let mut global_data = initial_state();
     let utils = utils::build_utils();
@@ -139,6 +150,7 @@ pub fn start(file: Option<std::path::PathBuf>) {
     }
     setup_event_handler(msg_sender.clone());
     setup_external_socket(msg_sender.clone());
+    setup_signals_handler(msg_sender.clone());
     println!("{}", termion::clear::All);
     let clone = msg_sender.clone();
     // This is witchcraft to account for channels not liking getting moved across dynamic boundaries :/
@@ -165,15 +177,16 @@ pub fn start(file: Option<std::path::PathBuf>) {
             Msg::Cmd(Cmd::Quit) => {
                 return;
             }
+            Msg::Cmd(Cmd::CleanRender) => {
+                println!("{}", termion::clear::All);
+                back_buffer = back_buffer::create_back_buffer();
+            }
             _ => {} // handled in libs
         }
 
         for (_path, lib) in libraries.iter() {
             (*lib.update_fn)(&mut global_data, &msg, &utils, &cmd_handler);
         }
-        // for (path, lib) in libraries.iter() {
-        //     (*lib.update_fn)(&mut global_data, &msg, &utils, other_send.clone());
-        // }
         let mut new_back_buffer = back_buffer::create_back_buffer();
 
         for (_path, lib) in libraries.iter() {

@@ -55,6 +55,7 @@ pub struct BackBuffer {
 pub struct Buffer {
     pub rope: Rope,
     pub source: std::path::PathBuf,
+    pub start_line: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -105,6 +106,7 @@ pub enum Cmd {
     WriteBuffer(std::path::PathBuf),
     LoadFile(std::path::PathBuf),
     SearchFiles,
+    CleanRender,
 }
 
 #[derive(Debug)]
