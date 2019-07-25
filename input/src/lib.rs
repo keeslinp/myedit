@@ -77,4 +77,14 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd:
 }
 
 #[no_mangle]
-pub fn init(_global_data: &mut GlobalData) {}
+pub fn init() -> Box<()> {
+    Box::new(())
+}
+
+#[no_mangle]
+pub fn cleanup(data: *mut Box<()>) {
+    unsafe {
+        let ptr = Box::from_raw(data);
+        drop(ptr);
+    }
+}

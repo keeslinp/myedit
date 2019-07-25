@@ -180,4 +180,14 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
 }
 
 #[no_mangle]
-pub fn init(global_data: &mut GlobalData) {}
+pub fn init() -> *mut Box<()> {
+    Box::into_raw(Box::new(Box::new(())))
+}
+
+#[no_mangle]
+pub fn cleanup(data: *mut Box<()>) {
+    unsafe {
+        let ptr = Box::from_raw(data);
+        drop(ptr);
+    }
+}

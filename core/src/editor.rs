@@ -4,6 +4,7 @@ use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher
 use std::collections::HashMap;
 use std::default::Default;
 use std::{fs, path, time};
+use std::any::Any;
 use termion::raw::IntoRawMode;
 use types::{BackBuffer, Cmd, Cursor, GlobalData, Mode, Msg, Point, Utils};
 
@@ -15,10 +16,20 @@ struct DynLib {
     lib: libloading::Library,
     render_fn: Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils)>,
     update_fn: Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Cmd)>)>,
-    init_fn: Symbol<extern "C" fn(&mut GlobalData, &Utils)>,
+    cleanup_fn: Symbol<extern "C" fn(*mut Box<Any>)>,
+    data: Box<Box<Any>>,
+}
+
+impl Drop for DynLib {
+    fn drop(&mut self) {
+        let data = std::mem::replace(&mut self.data, Box::new(Box::new(())));
+        (self.cleanup_fn)(Box::into_raw(data));
+        println!("after drop");
+    }
 }
 
 fn load_lib(path: &path::PathBuf) -> DynLib {
+    dbg!(&path);
     let file_name = path.file_name().expect("getting lib name");
     let copy_path: path::PathBuf = [
         "./lib_copies",
@@ -34,12 +45,16 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
         let update_fn: libloading::Symbol<
             extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Cmd)>),
         > = lib.get(b"update").expect("loading update function");
-        let init_fn: libloading::Symbol<extern "C" fn(&mut GlobalData, &Utils)> =
+        let init_fn: libloading::Symbol<extern "C" fn() -> *mut Box<Any>> =
             lib.get(b"init").expect("loading init function");
+        let cleanup_fn: libloading::Symbol<extern "C" fn(*mut Box<Any>)> =
+            lib.get(b"cleanup").expect("loading cleanup function");
+        let data = init_fn();
         DynLib {
             render_fn: render_fn.into_raw(),
             update_fn: update_fn.into_raw(),
-            init_fn: init_fn.into_raw(),
+            cleanup_fn: cleanup_fn.into_raw(),
+            data: Box::from_raw(data),
             lib,
         }
     }
@@ -168,7 +183,6 @@ pub fn start(file: Option<std::path::PathBuf>) {
                     let key = path.file_name().unwrap().to_str().unwrap();
                     libraries.remove(key);
                     let lib = load_lib(path);
-                    (*lib.init_fn)(&mut global_data, &utils);
                     libraries.insert(key.to_string(), lib);
                 }
                 _ => {}
