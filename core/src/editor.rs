@@ -45,11 +45,11 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
     }
 }
 
-#[cfg(debug_assertion)]
+// #[cfg(debug_assertion)]
 const LIB_LOC: &'static str = "./target/debug";
 
-#[cfg(not(debug_assertion))]
-const LIB_LOC: &'static str = "./target/release";
+// #[cfg(not(debug_assertion))]
+// const LIB_LOC: &'static str = "./target/release";
 
 fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
     use std::fs::read_dir;

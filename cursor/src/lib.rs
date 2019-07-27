@@ -94,7 +94,7 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
                                 }
                             }
                             Down => {
-                                if (global_data.cursor.position.y as usize) < rope.len_lines() {
+                                if (global_data.cursor.position.y as usize) + 1 < rope.len_lines() {
                                     global_data.cursor.position.y += 1;
                                 }
                                 let (_, rows) = terminal_size().expect("getting terminal size");
