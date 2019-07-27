@@ -1,10 +1,11 @@
 use crossbeam_channel::{unbounded, Sender};
 use libloading::os::unix::Symbol;
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
+use std::any::Any;
 use std::collections::HashMap;
 use std::default::Default;
+use std::ffi::c_void;
 use std::{fs, path, time};
-use std::any::Any;
 use termion::raw::IntoRawMode;
 use types::{BackBuffer, Cmd, Cursor, GlobalData, Mode, Msg, Point, Utils};
 
@@ -14,22 +15,19 @@ use crate::utils;
 #[derive(Debug)]
 struct DynLib {
     lib: libloading::Library,
-    render_fn: Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils)>,
-    update_fn: Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Cmd)>)>,
-    cleanup_fn: Symbol<extern "C" fn(*mut Box<Any>)>,
-    data: Box<Box<Any>>,
+    render_fn: Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils, *mut c_void)>,
+    update_fn: Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Cmd)>, *mut c_void)>,
+    cleanup_fn: Symbol<extern "C" fn(*mut c_void)>,
+    data: *mut c_void,
 }
 
 impl Drop for DynLib {
     fn drop(&mut self) {
-        let data = std::mem::replace(&mut self.data, Box::new(Box::new(())));
-        (self.cleanup_fn)(Box::into_raw(data));
-        println!("after drop");
+        (self.cleanup_fn)(self.data);
     }
 }
 
 fn load_lib(path: &path::PathBuf) -> DynLib {
-    dbg!(&path);
     let file_name = path.file_name().expect("getting lib name");
     let copy_path: path::PathBuf = [
         "./lib_copies",
@@ -40,21 +38,22 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
     fs::copy(path, copy_path.clone()).expect("copying lib");
     unsafe {
         let lib = libloading::Library::new(copy_path).expect("loading lib");
-        let render_fn: libloading::Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils)> =
-            lib.get(b"render").expect("loading render function");
+        let render_fn: libloading::Symbol<
+            extern "C" fn(&GlobalData, &mut BackBuffer, &Utils, *mut c_void),
+        > = lib.get(b"render").expect("loading render function");
         let update_fn: libloading::Symbol<
-            extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Cmd)>),
+            extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Cmd)>, *mut c_void),
         > = lib.get(b"update").expect("loading update function");
-        let init_fn: libloading::Symbol<extern "C" fn() -> *mut Box<Any>> =
+        let init_fn: libloading::Symbol<extern "C" fn() -> *mut c_void> =
             lib.get(b"init").expect("loading init function");
-        let cleanup_fn: libloading::Symbol<extern "C" fn(*mut Box<Any>)> =
+        let cleanup_fn: libloading::Symbol<extern "C" fn(*mut c_void)> =
             lib.get(b"cleanup").expect("loading cleanup function");
         let data = init_fn();
         DynLib {
             render_fn: render_fn.into_raw(),
             update_fn: update_fn.into_raw(),
             cleanup_fn: cleanup_fn.into_raw(),
-            data: Box::from_raw(data),
+            data,
             lib,
         }
     }
@@ -90,7 +89,6 @@ fn initial_state() -> GlobalData {
     GlobalData {
         buffers: arena,
         current_buffer,
-        command_buffer: Default::default(),
         mode: Mode::Normal,
         cursor: Cursor {
             position: Point { x: 1, y: 1 },
@@ -205,12 +203,12 @@ pub fn start(file: Option<std::path::PathBuf>) {
         }
 
         for (_path, lib) in libraries.iter() {
-            (*lib.update_fn)(&mut global_data, &msg, &utils, &cmd_handler);
+            (*lib.update_fn)(&mut global_data, &msg, &utils, &cmd_handler, lib.data);
         }
         let mut new_back_buffer = back_buffer::create_back_buffer();
 
         for (_path, lib) in libraries.iter() {
-            (*lib.render_fn)(&global_data, &mut new_back_buffer, &utils);
+            (*lib.render_fn)(&global_data, &mut new_back_buffer, &utils, lib.data);
         }
         back_buffer::update_stdout(&back_buffer, &new_back_buffer);
         back_buffer = new_back_buffer;

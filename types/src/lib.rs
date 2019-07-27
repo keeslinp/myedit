@@ -9,13 +9,6 @@ pub struct GlobalData {
     pub current_buffer: Index,
     pub mode: Mode,
     pub cursor: Cursor,
-    pub command_buffer: CommandBuffer,
-}
-
-#[derive(Debug, Default)]
-pub struct CommandBuffer {
-    pub text: String,
-    pub index: usize,
 }
 
 #[derive(Debug)]

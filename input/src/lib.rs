@@ -1,5 +1,11 @@
 use termion::event::{Event, Key};
 use types::{BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Utils};
+use std::ffi::c_void;
+
+#[derive(Debug, Default)]
+struct Data {
+    value: u8,
+}
 
 #[no_mangle]
 pub fn render(_global_data: &GlobalData, _back_buffer: &mut BackBuffer, _utils: &Utils) {}
@@ -47,7 +53,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd:
                     },
                     Event::Key(Key::Ctrl(c)) => match c {
                         'p' => send_cmd(Cmd::SearchFiles),
-                        _ => {},
+                        _ => {}
                     },
                     _ => {}
                 },
@@ -77,14 +83,14 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd:
 }
 
 #[no_mangle]
-pub fn init() -> Box<()> {
-    Box::new(())
+pub fn init() -> *mut c_void {
+    Box::into_raw(Box::new(Data::default())) as *mut c_void
 }
 
 #[no_mangle]
-pub fn cleanup(data: *mut Box<()>) {
+pub fn cleanup(data: *mut c_void) {
     unsafe {
-        let ptr = Box::from_raw(data);
+        let ptr= Box::from_raw(data as *mut Data);
         drop(ptr);
     }
 }

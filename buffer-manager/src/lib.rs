@@ -5,7 +5,8 @@ pub fn render(global_data: &GlobalData) {}
 
 fn load_buffer(global_data: &mut GlobalData, file_path: std::path::PathBuf) {
     let new_buffer = global_data.buffers.insert(Buffer {
-        rope: Rope::from_reader(std::fs::File::open(&file_path).expect("loading file")).expect("building rope"),
+        rope: Rope::from_reader(std::fs::File::open(&file_path).expect("loading file"))
+            .expect("building rope"),
         source: file_path,
         start_line: 0,
     });
@@ -51,13 +52,14 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg) {
     }
 }
 
+use std::ffi::c_void;
 #[no_mangle]
-pub fn init() -> Box<()> {
-    Box::new(())
+pub fn init() -> *mut c_void {
+    0 as *mut c_void
 }
 
 #[no_mangle]
-pub fn cleanup(data: *mut Box<()>) {
+pub fn cleanup(data: *mut c_void) {
     unsafe {
         let ptr = Box::from_raw(data);
         drop(ptr);

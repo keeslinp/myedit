@@ -9,8 +9,19 @@ use types::{
     BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils,
 };
 
+#[derive(Debug, Default)]
+struct State {
+    value: u8,
+}
+
 #[no_mangle]
-pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Utils) {
+pub fn render(
+    global_data: &GlobalData,
+    back_buffer: &mut BackBuffer,
+    utils: &Utils,
+    data_ptr: *mut c_void,
+) {
+    let data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     let (cols, rows) = terminal_size().unwrap();
     let display = match global_data.mode {
         Mode::Normal => "NORMAL",
@@ -32,10 +43,14 @@ pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Ut
         println!(
             "{}{}",
             Show,
-            Goto(global_data.cursor.position.x, global_data.cursor.position.y + 1 - global_data.buffers[global_data.current_buffer].start_line as u16)
+            Goto(
+                global_data.cursor.position.x,
+                global_data.cursor.position.y + 1
+                    - global_data.buffers[global_data.current_buffer].start_line as u16
+            )
         );
     }
-    // print!("{}{} {:?} {}", style::Invert, Goto(cols - 10, rows), global_data.mode, style::NoInvert);
+    std::mem::forget(data);
 }
 
 fn get_ropey_index_from_cursor(position: &Point, rope: &Rope) -> usize {
@@ -50,7 +65,14 @@ fn get_new_x_position(position: &Point, rope: &Rope) -> u16 {
 }
 
 #[no_mangle]
-pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: &Box<Fn(Cmd)>) {
+pub fn update(
+    global_data: &mut GlobalData,
+    cmd: &Msg,
+    utils: &Utils,
+    send_cmd: &Box<Fn(Cmd)>,
+    data_ptr: *mut c_void,
+) {
+    let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     let current_buffer = &mut global_data.buffers[global_data.current_buffer];
     let rope = &mut current_buffer.rope;
     use Cmd::*;
@@ -59,23 +81,7 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
             MoveCursor(dir) => {
                 use Direction::*;
                 match global_data.mode {
-                    Mode::Command => {
-                        match dir {
-                            Left => {
-                                if global_data.command_buffer.index > 0 {
-                                    global_data.command_buffer.index -= 1;
-                                }
-                            }
-                            Right => {
-                                if global_data.command_buffer.index
-                                    < global_data.command_buffer.text.len()
-                                {
-                                    global_data.command_buffer.index += 1;
-                                }
-                            }
-                            _ => {} // Only left and right matter
-                        }
-                    }
+                    Mode::Command => {}
                     _ => {
                         match dir {
                             Left => {
@@ -88,7 +94,8 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
                                 if global_data.cursor.position.y > 1 {
                                     global_data.cursor.position.y -= 1;
                                 }
-                                if (global_data.cursor.position.y as usize) < current_buffer.start_line
+                                if (global_data.cursor.position.y as usize)
+                                    < current_buffer.start_line
                                 {
                                     current_buffer.start_line -= 1;
                                 }
@@ -98,7 +105,8 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
                                     global_data.cursor.position.y += 1;
                                 }
                                 let (_, rows) = terminal_size().expect("getting terminal size");
-                                if (global_data.cursor.position.y as usize) >= current_buffer.start_line + (rows as usize - 1)
+                                if (global_data.cursor.position.y as usize)
+                                    >= current_buffer.start_line + (rows as usize - 1)
                                 {
                                     current_buffer.start_line += 1;
                                 }
@@ -114,13 +122,7 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
                 global_data.mode = mode.clone();
             }
             InsertChar(c) => match global_data.mode {
-                Mode::Command => {
-                    global_data
-                        .command_buffer
-                        .text
-                        .insert(global_data.command_buffer.index, *c);
-                    send_cmd(MoveCursor(Direction::Right));
-                }
+                Mode::Command => {}
                 _ => {
                     let index = get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
                     rope.insert_char(index, *c);
@@ -132,16 +134,7 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
                 }
             },
             DeleteChar(dir) => match global_data.mode {
-                Mode::Command => match dir {
-                    DeleteDirection::Before => {
-                        global_data
-                            .command_buffer
-                            .text
-                            .remove(global_data.command_buffer.index - 1);
-                        send_cmd(MoveCursor(Direction::Left));
-                    }
-                    DeleteDirection::After => {}
-                },
+                Mode::Command => {}
                 _ => {
                     let index = get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
                     match dir {
@@ -177,15 +170,18 @@ pub fn update(global_data: &mut GlobalData, cmd: &Msg, utils: &Utils, send_cmd: 
         },
         _ => {}
     };
+    std::mem::forget(data);
+}
+
+use std::ffi::c_void;
+
+#[no_mangle]
+pub fn init() -> *mut c_void {
+    unsafe { Box::into_raw(Box::new(State::default())) as *mut c_void }
 }
 
 #[no_mangle]
-pub fn init() -> *mut Box<()> {
-    Box::into_raw(Box::new(Box::new(())))
-}
-
-#[no_mangle]
-pub fn cleanup(data: *mut Box<()>) {
+pub fn cleanup(data: *mut c_void) {
     unsafe {
         let ptr = Box::from_raw(data);
         drop(ptr);
