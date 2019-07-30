@@ -11,3 +11,4 @@ crate-type = ["dylib"]
 [dependencies]
 termion = "1.5.3"
 types = { path = "../types" }
+syntect = "3.2.0"

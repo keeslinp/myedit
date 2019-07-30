@@ -2,6 +2,7 @@ use generational_arena::{Arena, Index};
 use notify::DebouncedEvent;
 use ropey::Rope;
 use termion::event::Event;
+use termion::color::{Fg, Bg};
 
 #[derive(Debug)]
 pub struct GlobalData {
@@ -17,10 +18,10 @@ pub struct Cursor {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Color {
-    Red,
-    Blue,
-    Green,
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

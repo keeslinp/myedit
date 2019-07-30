@@ -5,6 +5,29 @@ pub fn index_from_point(back_buffer: &BackBuffer, p: &Point) -> usize {
     (p.y * back_buffer.dim.w + p.x) as usize
 }
 
+pub fn style_range(
+    back_buffer: &mut BackBuffer,
+    start_point: &Point,
+    length: usize,
+    style: Option<Style>,
+    fg: Option<Color>,
+    bg: Option<Color>,
+) {
+    let index = index_from_point(back_buffer, start_point);
+    for offset in 0..length {
+        let cell = &mut back_buffer.cells[index + offset];
+        if style.is_some() {
+            cell.style = style.clone();
+        }
+        if fg.is_some() {
+            cell.fg = fg.clone();
+        }
+        if bg.is_some() {
+            cell.bg = bg.clone();
+        }
+    }
+}
+
 pub fn write_to_buffer(
     back_buffer: &mut BackBuffer,
     start_point: &Point,
@@ -46,10 +69,16 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer) {
     let mut x = 1;
     let mut y = 2;
     write!(writer, "{}", Save).unwrap();
-    // return;
     for (old_cell, new_cell) in old_buffer.cells.iter().zip(new_buffer.cells.iter()) {
         if old_cell != new_cell {
+            use termion::color;
             write!(writer, "{}{}", Goto(x, y), Reset).unwrap();
+            if let Some(ref fg) = new_cell.fg {
+                write!(writer, "\x1b[38;2;{};{};{}m", fg.r, fg.g, fg.b).unwrap();
+            }
+            if let Some(ref bg) = new_cell.bg {
+                write!(writer, "\x1b[48;2;{};{};{}m", bg.r, bg.g, bg.b).unwrap();
+            }
             if let Some(c) = new_cell.value {
                 if c == '\n' {}
                 write!(writer, "{}", c).unwrap();
