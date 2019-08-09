@@ -13,7 +13,7 @@ fn send_over_socket(mut socket: UnixStream, command: Cmd) {
 pub fn send(target: &str, command: &str) {
     let mut chunks = command.split(" ");
     let socket =
-        UnixStream::connect(format!("/tmp/myedit-{}", target)).expect("opening socket to write");
+        UnixStream::connect(format!("/tmp/myedit-core")).expect("opening socket to write");
     match chunks.next() {
         Some("edit") => {
             if let Some(file) = chunks.next() {

@@ -40,9 +40,9 @@ pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Ut
     for (index, ranges) in buffer
         .rope
         .lines()
-        .map(|line| h.highlight(line.as_str().unwrap_or(""), &data.ps))
         .skip(buffer.start_line)
         .take(rows as usize - 1)
+        .map(|line| h.highlight(line.as_str().unwrap_or(""), &data.ps))
         .enumerate()
     {
         let mut x_pos = 0;

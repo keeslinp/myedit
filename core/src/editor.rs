@@ -124,8 +124,8 @@ fn setup_external_socket(msg_sender: Sender<Msg>) {
     use std::os::unix::net::UnixListener;
     std::thread::spawn(move || {
         // Don't care if it did not exist
-        let _ = std::fs::remove_file("/tmp/myedit-test_client");
-        let listener = UnixListener::bind("/tmp/myedit-test_client").unwrap();
+        let _ = std::fs::remove_file("/tmp/myedit-core");
+        let listener = UnixListener::bind("/tmp/myedit-core").unwrap();
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
