@@ -6,7 +6,7 @@ use termion::{
     style, terminal_size,
 };
 use types::{
-    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils,
+    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils, ClientIndex,
 };
 
 #[derive(Debug, Default)]
@@ -17,13 +17,14 @@ struct State {
 #[no_mangle]
 pub fn render(
     global_data: &GlobalData,
+    client: ClientIndex,
     back_buffer: &mut BackBuffer,
     utils: &Utils,
     data_ptr: *mut c_void,
 ) {
     let data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     let (cols, rows) = terminal_size().unwrap();
-    let display = match global_data.mode {
+    let display = match global_data.clients[client].mode {
         Mode::Normal => "NORMAL",
         Mode::Insert => "INSERT",
         Mode::Command => "COMMAND",
@@ -39,14 +40,14 @@ pub fn render(
         None,
         None,
     );
-    if global_data.mode != Mode::Command {
+    if global_data.clients[client].mode != Mode::Command {
         println!(
             "{}{}",
             Show,
             Goto(
                 global_data.cursor.position.x,
                 global_data.cursor.position.y + 1
-                    - global_data.buffers[global_data.current_buffer].start_line as u16
+                    - global_data.buffers[global_data.clients[client].buffer].start_line as u16
             )
         );
     }
@@ -73,101 +74,108 @@ pub fn update(
     data_ptr: *mut c_void,
 ) {
     let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
-    let current_buffer = &mut global_data.buffers[global_data.current_buffer];
-    let rope = &mut current_buffer.rope;
     use Cmd::*;
     match cmd {
-        Msg::Cmd(cmd) => match cmd {
-            MoveCursor(dir) => {
-                use Direction::*;
-                match global_data.mode {
+        Msg::Cmd(client, cmd) => {
+            let current_buffer = &mut global_data.buffers[global_data.clients[*client].buffer];
+            let rope = &mut current_buffer.rope;
+            match cmd {
+                MoveCursor(dir) => {
+                    use Direction::*;
+                    match global_data.clients[*client].mode {
+                        Mode::Command => {}
+                        _ => {
+                            match dir {
+                                Left => {
+                                    if global_data.cursor.position.x > 1 {
+                                        global_data.cursor.position.x -= 1
+                                    }
+                                }
+                                Right => global_data.cursor.position.x += 1,
+                                Up => {
+                                    if global_data.cursor.position.y > 1 {
+                                        global_data.cursor.position.y -= 1;
+                                    }
+                                    if (global_data.cursor.position.y as usize)
+                                        < current_buffer.start_line
+                                    {
+                                        current_buffer.start_line -= 1;
+                                    }
+                                }
+                                Down => {
+                                    if (global_data.cursor.position.y as usize) + 1
+                                        < rope.len_lines()
+                                    {
+                                        global_data.cursor.position.y += 1;
+                                    }
+                                    let (_, rows) = terminal_size().expect("getting terminal size");
+                                    if (global_data.cursor.position.y as usize)
+                                        >= current_buffer.start_line + (rows as usize - 1)
+                                    {
+                                        current_buffer.start_line += 1;
+                                    }
+                                }
+                            }
+                            // Make sure we don't venture to nowhere
+                            global_data.cursor.position.x =
+                                get_new_x_position(&global_data.cursor.position, &rope);
+                        }
+                    }
+                }
+                ChangeMode(ref mode) => {
+                    global_data.clients[*client].mode = mode.clone();
+                }
+                InsertChar(c) => match global_data.clients[*client].mode {
                     Mode::Command => {}
                     _ => {
+                        let index =
+                            get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
+                        rope.insert_char(index, *c);
+                        if *c == '\n' {
+                            send_cmd(MoveCursor(Direction::Down));
+                        } else {
+                            send_cmd(MoveCursor(Direction::Right));
+                        }
+                    }
+                },
+                DeleteChar(dir) => match global_data.clients[*client].mode {
+                    Mode::Command => {}
+                    _ => {
+                        let index =
+                            get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
                         match dir {
-                            Left => {
+                            DeleteDirection::After => {
+                                rope.remove(index..index + 1);
+                            }
+                            DeleteDirection::Before => {
                                 if global_data.cursor.position.x > 1 {
+                                    rope.remove(index - 1..index);
                                     global_data.cursor.position.x -= 1
                                 }
                             }
-                            Right => global_data.cursor.position.x += 1,
-                            Up => {
-                                if global_data.cursor.position.y > 1 {
-                                    global_data.cursor.position.y -= 1;
-                                }
-                                if (global_data.cursor.position.y as usize)
-                                    < current_buffer.start_line
-                                {
-                                    current_buffer.start_line -= 1;
-                                }
-                            }
-                            Down => {
-                                if (global_data.cursor.position.y as usize) + 1 < rope.len_lines() {
-                                    global_data.cursor.position.y += 1;
-                                }
-                                let (_, rows) = terminal_size().expect("getting terminal size");
-                                if (global_data.cursor.position.y as usize)
-                                    >= current_buffer.start_line + (rows as usize - 1)
-                                {
-                                    current_buffer.start_line += 1;
-                                }
-                            }
-                        }
-                        // Make sure we don't venture to nowhere
-                        global_data.cursor.position.x =
-                            get_new_x_position(&global_data.cursor.position, &rope);
-                    }
-                }
-            }
-            ChangeMode(ref mode) => {
-                global_data.mode = mode.clone();
-            }
-            InsertChar(c) => match global_data.mode {
-                Mode::Command => {}
-                _ => {
-                    let index = get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
-                    rope.insert_char(index, *c);
-                    if *c == '\n' {
-                        send_cmd(MoveCursor(Direction::Down));
-                    } else {
-                        send_cmd(MoveCursor(Direction::Right));
-                    }
-                }
-            },
-            DeleteChar(dir) => match global_data.mode {
-                Mode::Command => {}
-                _ => {
-                    let index = get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
-                    match dir {
-                        DeleteDirection::After => {
-                            rope.remove(index..index + 1);
-                        }
-                        DeleteDirection::Before => {
-                            if global_data.cursor.position.x > 1 {
-                                rope.remove(index - 1..index);
-                                global_data.cursor.position.x -= 1
-                            }
                         }
                     }
-                }
-            },
-            Jump(jump_type) => {
-                use JumpType::*;
-                match jump_type {
-                    EndOfLine => {
-                        let mut position = &mut global_data.cursor.position;
-                        position.x = global_data.buffers[global_data.current_buffer]
-                            .rope
-                            .line(position.y as usize)
-                            .len_chars() as u16
+                },
+                Jump(jump_type) => {
+                    use JumpType::*;
+                    match jump_type {
+                        EndOfLine => {
+                            let mut position = &mut global_data.cursor.position;
+                            position.x = global_data.buffers
+                                [global_data.clients[*client].buffer]
+                                .rope
+                                .line(position.y as usize)
+                                .len_chars() as u16
+                        }
+                        StartOfLine => {
+                            global_data.cursor.position.x = 1;
+                        }
+                        _ => {}
                     }
-                    StartOfLine => {
-                        global_data.cursor.position.x = 1;
-                    }
-                    _ => {}
                 }
+                _ => {}
             }
-            _ => {}
-        },
+        }
         _ => {}
     };
     std::mem::forget(data);

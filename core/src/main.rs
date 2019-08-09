@@ -1,4 +1,5 @@
 mod back_buffer;
+mod client;
 mod editor;
 mod send_cmd;
 mod utils;
@@ -16,6 +17,8 @@ struct Opt {
     target: Option<String>,
     #[structopt(parse(from_os_str))]
     input: Option<std::path::PathBuf>,
+    #[structopt(name = "core", long = "core")]
+    core: bool,
 }
 
 #[derive(StructOpt, Debug)]
@@ -32,14 +35,18 @@ struct EditCommand {
 
 fn main() {
     let opt = Opt::from_args();
-    match opt.sub_command {
-        Some(command) => {
-            if let Some(target) = opt.target {
-                send_cmd::send(target.as_str(), command.as_str());
-            } else {
-                panic!("Cannot pass command without target");
+    if opt.core {
+        editor::start(opt.input);
+    } else {
+        match opt.sub_command {
+            Some(command) => {
+                if let Some(target) = opt.target {
+                    send_cmd::send(target.as_str(), command.as_str());
+                } else {
+                    panic!("Cannot pass command without target");
+                }
             }
+            None => client::start(opt.input),
         }
-        None => editor::start(opt.input),
     }
 }

@@ -58,14 +58,12 @@ pub fn write_to_buffer(
     }
 }
 
-pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer) {
-    let stdout = std::io::stdout();
-    let handle = stdout.lock();
+pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer, out: impl Write) {
     use termion::{
         cursor::{Goto, HideCursor, Restore, Save, Show},
         style::Reset,
     };
-    let mut writer = HideCursor::from(handle);
+    let mut writer = HideCursor::from(out);
     let mut x = 1;
     let mut y = 2;
     write!(writer, "{}", Save).unwrap();
@@ -97,7 +95,8 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer) {
 }
 
 pub fn create_back_buffer() -> BackBuffer {
-    let (cols, rows) = termion::terminal_size().unwrap();
+    // TODO: Figure out the client size
+    let (cols, rows) = (500, 500); //termion::terminal_size().unwrap();
     let total_cell_count = cols * rows;
     let mut cells = Vec::with_capacity(total_cell_count as usize);
     for _ in 0..total_cell_count {

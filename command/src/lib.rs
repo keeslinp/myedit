@@ -7,7 +7,8 @@ use termion::{
     style, terminal_size,
 };
 use types::{
-    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils,
+    BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg,
+    Point, Utils,
 };
 
 #[derive(Debug, Default)]
@@ -24,14 +25,16 @@ struct Data {
 #[no_mangle]
 pub fn render(
     global_data: &GlobalData,
+    client: ClientIndex,
     back_buffer: &mut BackBuffer,
     utils: &Utils,
     data_ptr: *mut c_void,
 ) {
+    let mode = &global_data.clients[client].mode;
     let data = unsafe { Box::from_raw(data_ptr as *mut Data) };
     let (cols, rows) = terminal_size().unwrap();
     let status_row_y = rows - 1;
-    if global_data.mode == Mode::Command {
+    if *mode == Mode::Command {
         (utils.write_to_buffer)(
             back_buffer,
             &Point { x: 0, y: rows - 1 },
@@ -72,7 +75,7 @@ pub fn update(
     let mut data = unsafe { Box::from_raw(data_ptr as *mut Data) };
     use Cmd::*;
     match msg {
-        Msg::Cmd(cmd) => match cmd {
+        Msg::Cmd(client, cmd) => match cmd {
             Cmd::RunCommand => {
                 let mut command_words = data.command_buffer.text.split(" ");
                 match command_words.next() {
@@ -81,7 +84,7 @@ pub fn update(
                             .next()
                             .map(|file_path| std::path::PathBuf::from(file_path))
                             .unwrap_or(
-                                global_data.buffers[global_data.current_buffer]
+                                global_data.buffers[global_data.clients[*client].buffer]
                                     .source
                                     .clone(),
                             );
@@ -92,7 +95,7 @@ pub fn update(
                             .next()
                             .map(|file_path| std::path::PathBuf::from(file_path))
                             .unwrap_or(
-                                global_data.buffers[global_data.current_buffer]
+                                global_data.buffers[global_data.clients[*client].buffer]
                                     .source
                                     .clone(),
                             );
@@ -101,7 +104,7 @@ pub fn update(
                     Some("q") => send_cmd(Cmd::Quit),
                     Some("wq") => {
                         send_cmd(Cmd::WriteBuffer(
-                            global_data.buffers[global_data.current_buffer]
+                            global_data.buffers[global_data.clients[*client].buffer]
                                 .source
                                 .clone(),
                         ));
@@ -119,7 +122,7 @@ pub fn update(
                     data.command_buffer.index = 0;
                 }
             }
-            InsertChar(c) => match global_data.mode {
+            InsertChar(c) => match global_data.clients[*client].mode {
                 Mode::Command => {
                     data.command_buffer
                         .text
@@ -128,7 +131,7 @@ pub fn update(
                 }
                 _ => {}
             },
-            DeleteChar(dir) => match global_data.mode {
+            DeleteChar(dir) => match global_data.clients[*client].mode {
                 Mode::Command => match dir {
                     DeleteDirection::Before => {
                         data.command_buffer
@@ -142,7 +145,7 @@ pub fn update(
             },
             MoveCursor(dir) => {
                 use Direction::*;
-                match global_data.mode {
+                match global_data.clients[*client].mode {
                     Mode::Command => {
                         match dir {
                             Left => {

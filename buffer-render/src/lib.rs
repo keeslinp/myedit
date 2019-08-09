@@ -5,20 +5,16 @@ use syntect::{
     highlighting::{Style, ThemeSet},
     parsing::SyntaxSet,
 };
-use types::{BackBuffer, GlobalData, Msg, Point, Utils, Color};
+use types::{BackBuffer, ClientIndex, Color, GlobalData, Msg, Point, Utils};
 
 #[derive(Debug)]
 struct Data {
-    ps: SyntaxSet,
-    ts: ThemeSet,
+    val: bool,
 }
 
 impl Default for Data {
     fn default() -> Data {
-        Data {
-            ps: SyntaxSet::load_defaults_newlines(),
-            ts: ThemeSet::load_defaults(),
-        }
+        Data { val: false }
     }
 }
 
@@ -31,36 +27,34 @@ fn color_from_syntect_color(color: &syntect::highlighting::Color) -> Color {
 }
 
 #[no_mangle]
-pub fn render(global_data: &GlobalData, back_buffer: &mut BackBuffer, utils: &Utils, data_ptr: *mut c_void) {
+pub fn render(
+    global_data: &GlobalData,
+    client: ClientIndex,
+    back_buffer: &mut BackBuffer,
+    utils: &Utils,
+    data_ptr: *mut c_void,
+) {
     let data: Box<Data> = unsafe { Box::from_raw(data_ptr as *mut Data) };
-    let buffer = &global_data.buffers[global_data.current_buffer];
-    let syntax = global_data.buffers[global_data.current_buffer].source.extension().and_then(|ext| ext.to_str()).and_then(|extension| data.ps.find_syntax_by_extension(extension)).expect("loading syntax style");
-    let mut h = HighlightLines::new(syntax, &data.ts.themes["Solarized (dark)"]);
+    let buffer = &global_data.buffers[global_data.clients[client].buffer];
     let (cols, rows) = termion::terminal_size().unwrap();
-    for (index, ranges) in buffer
+    for (index, line) in buffer
         .rope
         .lines()
         .skip(buffer.start_line)
         .take(rows as usize - 1)
-        .map(|line| h.highlight(line.as_str().unwrap_or(""), &data.ps))
         .enumerate()
     {
-        let mut x_pos = 0;
-        for (style, text) in ranges {
-            (utils.write_to_buffer)(
-                back_buffer,
-                &Point {
-                    x: x_pos,
-                    y: index as u16,
-                },
-                text,
-                None,
-                Some(color_from_syntect_color(&style.foreground)),
-                None,
-                // Some(color_from_syntect_color(&style.background)),
-            );
-            x_pos += text.len() as u16;
-        }
+        (utils.write_to_buffer)(
+            back_buffer,
+            &Point {
+                x: 0,
+                y: index as u16,
+            },
+            line.as_str().unwrap(),
+            None,
+            None,
+            None,
+        );
     }
     std::mem::forget(data);
 }

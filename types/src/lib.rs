@@ -1,15 +1,19 @@
-use generational_arena::{Arena, Index};
 use notify::DebouncedEvent;
 use ropey::Rope;
+use slotmap::{DefaultKey, SecondaryMap, SlotMap};
+use std::os::unix::net::UnixStream;
+use termion::color::{Bg, Fg};
 use termion::event::Event;
-use termion::color::{Fg, Bg};
+
+pub type ClientIndex = DefaultKey;
 
 #[derive(Debug)]
 pub struct GlobalData {
-    pub buffers: Arena<Buffer>,
-    pub current_buffer: Index,
-    pub mode: Mode,
+    pub buffer_keys: SlotMap<DefaultKey, ()>,
+    pub buffers: SecondaryMap<DefaultKey, Buffer>,
     pub cursor: Cursor,
+    pub client_keys: SlotMap<ClientIndex, ()>,
+    pub clients: SecondaryMap<ClientIndex, Client>,
 }
 
 #[derive(Debug)]
@@ -86,7 +90,10 @@ pub enum JumpType {
 
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_derive::{Deserialize, Serialize};
+// use serde_derive::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RemoteCommand(pub ClientIndex, pub Cmd);
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum Cmd {
@@ -104,10 +111,19 @@ pub enum Cmd {
 }
 
 #[derive(Debug)]
+pub struct Client {
+    pub stream: UnixStream,
+    pub buffer: DefaultKey,
+    pub mode: Mode,
+    pub back_buffer: BackBuffer,
+}
+
+#[derive(Debug)]
 pub enum Msg {
     LibraryEvent(DebouncedEvent),
-    StdinEvent(Event),
-    Cmd(Cmd),
+    StdinEvent(ClientIndex, Event),
+    Cmd(ClientIndex, Cmd),
+    NewClient(UnixStream),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

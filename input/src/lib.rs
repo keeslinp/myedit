@@ -1,6 +1,6 @@
+use std::ffi::c_void;
 use termion::event::{Event, Key};
 use types::{BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Utils};
-use std::ffi::c_void;
 
 #[derive(Debug, Default)]
 struct Data {
@@ -13,7 +13,7 @@ pub fn render(_global_data: &GlobalData, _back_buffer: &mut BackBuffer, _utils: 
 #[no_mangle]
 pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd: &Box<Fn(Cmd)>) {
     match msg {
-        Msg::StdinEvent(evt) => {
+        Msg::StdinEvent(client, evt) => {
             // Same for all modes
             match evt {
                 Event::Key(k) => match k {
@@ -25,7 +25,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd:
                 },
                 _ => {}
             }
-            match global_data.mode {
+            match global_data.clients[*client].mode {
                 Mode::Normal => match evt {
                     Event::Key(Key::Char(c)) => match c {
                         'i' => send_cmd(Cmd::ChangeMode(Mode::Insert)),
@@ -90,7 +90,7 @@ pub fn init() -> *mut c_void {
 #[no_mangle]
 pub fn cleanup(data: *mut c_void) {
     unsafe {
-        let ptr= Box::from_raw(data as *mut Data);
+        let ptr = Box::from_raw(data as *mut Data);
         drop(ptr);
     }
 }

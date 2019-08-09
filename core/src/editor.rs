@@ -5,9 +5,14 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::default::Default;
 use std::ffi::c_void;
+use std::io::{Read, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::{fs, path, time};
 use termion::raw::IntoRawMode;
-use types::{BackBuffer, Cmd, Cursor, GlobalData, Mode, Msg, Point, Utils};
+use types::{
+    BackBuffer, Client, ClientIndex, Cmd, Cursor, GlobalData, Mode, Msg, Point, RemoteCommand,
+    Utils,
+};
 
 use crate::back_buffer;
 use crate::utils;
@@ -15,8 +20,11 @@ use crate::utils;
 #[derive(Debug)]
 struct DynLib {
     lib: libloading::Library,
-    render_fn: Symbol<extern "C" fn(&GlobalData, &mut BackBuffer, &Utils, *mut c_void)>,
-    update_fn: Symbol<extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Cmd)>, *mut c_void)>,
+    render_fn:
+        Symbol<extern "C" fn(&GlobalData, ClientIndex, &mut BackBuffer, &Utils, *mut c_void)>,
+    update_fn: Symbol<
+        extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(ClientIndex, Cmd)>, *mut c_void),
+    >,
     cleanup_fn: Symbol<extern "C" fn(*mut c_void)>,
     data: *mut c_void,
 }
@@ -39,10 +47,10 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
     unsafe {
         let lib = libloading::Library::new(copy_path).expect("loading lib");
         let render_fn: libloading::Symbol<
-            extern "C" fn(&GlobalData, &mut BackBuffer, &Utils, *mut c_void),
+            extern "C" fn(&GlobalData, ClientIndex, &mut BackBuffer, &Utils, *mut c_void),
         > = lib.get(b"render").expect("loading render function");
         let update_fn: libloading::Symbol<
-            extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(Cmd)>, *mut c_void),
+            extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(ClientIndex, Cmd)>, *mut c_void),
         > = lib.get(b"update").expect("loading update function");
         let init_fn: libloading::Symbol<extern "C" fn() -> *mut c_void> =
             lib.get(b"init").expect("loading init function");
@@ -82,17 +90,20 @@ fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
 }
 
 fn initial_state() -> GlobalData {
-    use generational_arena::Arena;
+    use slotmap::{SecondaryMap, SlotMap};
     let buffer = Default::default();
-    let mut arena = Arena::new();
-    let current_buffer = arena.insert(buffer);
+    let mut buffer_keys = SlotMap::new();
+    let current_buffer = buffer_keys.insert(());
+    let mut buffers = SecondaryMap::new();
+    buffers.insert(current_buffer, buffer);
     GlobalData {
-        buffers: arena,
-        current_buffer,
-        mode: Mode::Normal,
+        buffer_keys,
+        buffers,
         cursor: Cursor {
             position: Point { x: 1, y: 1 },
         },
+        clients: SecondaryMap::new(),
+        client_keys: SlotMap::new(),
     }
 }
 
@@ -106,22 +117,7 @@ fn setup_watcher(msg_sender: Sender<Msg>) -> RecommendedWatcher {
     watcher(tx, time::Duration::from_millis(100)).unwrap()
 }
 
-fn setup_event_handler(msg_sender: Sender<Msg>) {
-    std::thread::spawn(move || {
-        use termion::input::TermRead;
-        let stdin = std::io::stdin();
-        let _stdout = std::io::stdout().into_raw_mode().unwrap(); // Need to turn it into raw mode
-        for event in stdin.events() {
-            if let Ok(evt) = event {
-                msg_sender.send(Msg::StdinEvent(evt)).unwrap();
-            }
-        }
-    });
-}
-
 fn setup_external_socket(msg_sender: Sender<Msg>) {
-    use std::io::Read;
-    use std::os::unix::net::UnixListener;
     std::thread::spawn(move || {
         // Don't care if it did not exist
         let _ = std::fs::remove_file("/tmp/myedit-core");
@@ -129,9 +125,10 @@ fn setup_external_socket(msg_sender: Sender<Msg>) {
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
-                    let cmd: Cmd = rmp_serde::from_read(stream).expect("parsing command");
+                    let RemoteCommand(client, cmd): RemoteCommand =
+                        rmp_serde::from_read(stream).expect("parsing command");
                     msg_sender
-                        .send(Msg::Cmd(cmd))
+                        .send(Msg::Cmd(client, cmd))
                         .expect("sending command in message");
                 }
                 Err(err) => {
@@ -143,16 +140,53 @@ fn setup_external_socket(msg_sender: Sender<Msg>) {
     });
 }
 
-fn setup_signals_handler(msg_sender: Sender<Msg>) {
-    use signal_hook::iterator::Signals;
-    use signal_hook::SIGWINCH;
-    let signals = Signals::new(&[SIGWINCH]).unwrap();
+fn handle_client_input(client_index: ClientIndex, stream: UnixStream, msg_sender: Sender<Msg>) {
     std::thread::spawn(move || {
-        for _ in signals.forever() {
-            msg_sender.send(Msg::Cmd(Cmd::CleanRender));
+        use termion::event::parse_event;
+        let mut bytes = stream.bytes();
+        loop {
+            let byte = bytes.next();
+            if let Some(Ok(byte)) = byte {
+                if let Ok(evt) = parse_event(byte, &mut bytes) {
+                    msg_sender
+                        .send(Msg::StdinEvent(client_index, evt))
+                        .expect("sending stdin event from client");
+                }
+            } else {
+                break;
+            }
         }
     });
 }
+
+fn setup_client_listener(msg_sender: Sender<Msg>) {
+    std::thread::spawn(move || {
+        let _ = std::fs::remove_file("/tmp/myedit-stdin");
+        let listener = UnixListener::bind("/tmp/myedit-stdin").unwrap();
+        for stream in listener.incoming() {
+            match stream {
+                Ok(mut stream) => {
+                    msg_sender.send(Msg::NewClient(stream));
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+    });
+}
+
+// TODO: Figure this out
+// fn setup_signals_handler(msg_sender: Sender<Msg>) {
+//     use signal_hook::iterator::Signals;
+//     use signal_hook::SIGWINCH;
+//     let signals = Signals::new(&[SIGWINCH]).unwrap();
+//     std::thread::spawn(move || {
+//         for _ in signals.forever() {
+//             msg_sender.send(Msg::Cmd(Cmd::CleanRender));
+//         }
+//     });
+// }
 
 pub fn start(file: Option<std::path::PathBuf>) {
     let mut global_data = initial_state();
@@ -161,19 +195,20 @@ pub fn start(file: Option<std::path::PathBuf>) {
     let mut watcher = setup_watcher(msg_sender.clone());
     let mut libraries: HashMap<String, DynLib> = load_libs(&mut watcher);
 
-    let mut back_buffer = back_buffer::create_back_buffer();
-    if let Some(file) = file {
-        msg_sender
-            .send(Msg::Cmd(Cmd::LoadFile(file)))
-            .expect("loading initial file");
-    }
-    setup_event_handler(msg_sender.clone());
+    // if let Some(file) = file {
+    //     msg_sender
+    //         .send(Msg::Cmd(Cmd::LoadFile(file)))
+    //         .expect("loading initial file");
+    // }
+    // setup_event_handler(msg_sender.clone());
     setup_external_socket(msg_sender.clone());
-    setup_signals_handler(msg_sender.clone());
+    // setup_signals_handler(msg_sender.clone());
+    setup_client_listener(msg_sender.clone());
     println!("{}", termion::clear::All);
     let clone = msg_sender.clone();
     // This is witchcraft to account for channels not liking getting moved across dynamic boundaries :/
-    let cmd_handler: Box<Fn(Cmd)> = Box::new(move |msg| clone.send(Msg::Cmd(msg)).unwrap());
+    let cmd_handler: Box<Fn(ClientIndex, Cmd)> =
+        Box::new(move |client_index, msg| clone.send(Msg::Cmd(client_index, msg)).unwrap());
     for msg in msg_receiver.iter() {
         match msg {
             Msg::LibraryEvent(ref event) => match event {
@@ -185,19 +220,41 @@ pub fn start(file: Option<std::path::PathBuf>) {
                 }
                 _ => {}
             },
-            Msg::StdinEvent(ref evt) => {
+            Msg::StdinEvent(client, ref evt) => {
                 use termion::event::{Event, Key};
                 match evt {
                     Event::Key(Key::Ctrl('c')) => return,
                     _ => {}
                 }
             }
-            Msg::Cmd(Cmd::Quit) => {
+            Msg::Cmd(client_index, Cmd::Quit) => {
+                // TODO: don't crash
+                global_data.clients[client_index]
+                    .stream
+                    .shutdown(std::net::Shutdown::Both);
                 return;
             }
-            Msg::Cmd(Cmd::CleanRender) => {
-                println!("{}", termion::clear::All);
-                back_buffer = back_buffer::create_back_buffer();
+            Msg::Cmd(client, Cmd::CleanRender) => {
+                // TODO: Clean client
+                write!(global_data.clients[client].stream, "{}", termion::clear::All);
+                global_data.clients[client].back_buffer = back_buffer::create_back_buffer();
+            }
+            Msg::NewClient(ref stream) => {
+                let stream_clone = stream.try_clone().unwrap();
+                let client = Client {
+                    stream: stream.try_clone().unwrap(),
+                    buffer: global_data
+                        .buffers
+                        .iter()
+                        .next()
+                        .expect("Getting first buffer")
+                        .0,
+                    mode: Mode::Normal,
+                    back_buffer: back_buffer::create_back_buffer(),
+                };
+                let index = global_data.client_keys.insert(());
+                global_data.clients.insert(index, client);
+                handle_client_input(index, stream_clone, msg_sender.clone());
             }
             _ => {} // handled in libs
         }
@@ -205,12 +262,16 @@ pub fn start(file: Option<std::path::PathBuf>) {
         for (_path, lib) in libraries.iter() {
             (*lib.update_fn)(&mut global_data, &msg, &utils, &cmd_handler, lib.data);
         }
-        let mut new_back_buffer = back_buffer::create_back_buffer();
-
-        for (_path, lib) in libraries.iter() {
-            (*lib.render_fn)(&global_data, &mut new_back_buffer, &utils, lib.data);
+        if (msg_sender.is_empty()) {
+            // Don't bother rendering if there is more in the pipeline
+            for client in global_data.client_keys.keys() {
+                let mut new_back_buffer = back_buffer::create_back_buffer();
+                for (_path, lib) in libraries.iter() {
+                    (*lib.render_fn)(&global_data, client, &mut new_back_buffer, &utils, lib.data);
+                }
+                back_buffer::update_stdout(&global_data.clients[client].back_buffer, &new_back_buffer, global_data.clients[client].stream.try_clone().unwrap());
+                global_data.clients[client].back_buffer = new_back_buffer;
+            }
         }
-        back_buffer::update_stdout(&back_buffer, &new_back_buffer);
-        back_buffer = new_back_buffer;
     }
 }
