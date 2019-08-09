@@ -2,7 +2,7 @@ use notify::DebouncedEvent;
 use ropey::Rope;
 use slotmap::{DefaultKey, SecondaryMap, SlotMap};
 use std::os::unix::net::UnixStream;
-use termion::color::{Bg, Fg};
+
 use termion::event::Event;
 
 pub type ClientIndex = DefaultKey;
@@ -88,7 +88,7 @@ pub enum JumpType {
     MatchingBrace,
 }
 
-use rmp_serde::{Deserializer, Serializer};
+
 use serde::{Deserialize, Serialize};
 // use serde_derive::{Deserialize, Serialize};
 

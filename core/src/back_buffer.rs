@@ -69,7 +69,7 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer, out: impl
     write!(writer, "{}", Save).unwrap();
     for (old_cell, new_cell) in old_buffer.cells.iter().zip(new_buffer.cells.iter()) {
         if old_cell != new_cell {
-            use termion::color;
+            
             write!(writer, "{}{}", Goto(x, y), Reset).unwrap();
             if let Some(ref fg) = new_cell.fg {
                 write!(writer, "\x1b[38;2;{};{};{}m", fg.r, fg.g, fg.b).unwrap();

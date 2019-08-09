@@ -1,5 +1,5 @@
-use rmp_serde::{Deserializer, Serializer};
-use serde::{Deserialize, Serialize};
+use rmp_serde::{Serializer};
+use serde::{Serialize};
 use std::io::Write;
 use std::os::unix::net::UnixStream;
 use types::Cmd;
@@ -10,7 +10,7 @@ fn send_over_socket(mut socket: UnixStream, command: Cmd) {
     socket.write_all(&buf).unwrap();
 }
 
-pub fn send(target: &str, command: &str) {
+pub fn send(_target: &str, command: &str) {
     let mut chunks = command.split(" ");
     let socket = UnixStream::connect(format!("/tmp/myedit-core")).expect("opening socket to write");
     match chunks.next() {

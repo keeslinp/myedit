@@ -1,14 +1,14 @@
 use crossbeam_channel::{unbounded, Sender};
 use libloading::os::unix::Symbol;
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
-use std::any::Any;
+
 use std::collections::HashMap;
 use std::default::Default;
 use std::ffi::c_void;
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::{fs, path, time};
-use termion::raw::IntoRawMode;
+
 use types::{
     BackBuffer, Client, ClientIndex, Cmd, Cursor, GlobalData, Mode, Msg, Point, RemoteCommand,
     Utils,
@@ -124,7 +124,7 @@ fn setup_external_socket(msg_sender: Sender<Msg>) {
         let listener = UnixListener::bind("/tmp/myedit-core").unwrap();
         for stream in listener.incoming() {
             match stream {
-                Ok(mut stream) => {
+                Ok(stream) => {
                     let RemoteCommand(client, cmd): RemoteCommand =
                         rmp_serde::from_read(stream).expect("parsing command");
                     msg_sender
@@ -165,7 +165,7 @@ fn setup_client_listener(msg_sender: Sender<Msg>) {
         let listener = UnixListener::bind("/tmp/myedit-stdin").unwrap();
         for stream in listener.incoming() {
             match stream {
-                Ok(mut stream) => {
+                Ok(stream) => {
                     msg_sender.send(Msg::NewClient(stream));
                 }
                 Err(_) => {
@@ -188,7 +188,7 @@ fn setup_client_listener(msg_sender: Sender<Msg>) {
 //     });
 // }
 
-pub fn start(file: Option<std::path::PathBuf>) {
+pub fn start(_file: Option<std::path::PathBuf>) {
     let mut global_data = initial_state();
     let utils = utils::build_utils();
     let (msg_sender, msg_receiver) = unbounded::<Msg>();
@@ -220,7 +220,7 @@ pub fn start(file: Option<std::path::PathBuf>) {
                 }
                 _ => {}
             },
-            Msg::StdinEvent(client, ref evt) => {
+            Msg::StdinEvent(_client, ref evt) => {
                 use termion::event::{Event, Key};
                 match evt {
                     Event::Key(Key::Ctrl('c')) => return,
@@ -262,7 +262,7 @@ pub fn start(file: Option<std::path::PathBuf>) {
         for (_path, lib) in libraries.iter() {
             (*lib.update_fn)(&mut global_data, &msg, &utils, &cmd_handler, lib.data);
         }
-        if (msg_sender.is_empty()) {
+        if msg_sender.is_empty() {
             // Don't bother rendering if there is more in the pipeline
             for client in global_data.client_keys.keys() {
                 let mut new_back_buffer = back_buffer::create_back_buffer();

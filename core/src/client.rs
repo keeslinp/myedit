@@ -1,19 +1,19 @@
 use crossbeam_channel::{unbounded, Sender};
-use libloading::os::unix::Symbol;
-use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
-use std::any::Any;
-use std::collections::HashMap;
-use std::default::Default;
-use std::ffi::c_void;
+
+use notify::{Watcher};
+
+
+
+
 use std::io::{Read, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
-use std::{fs, path, time};
+use std::os::unix::net::{UnixStream};
+
 use termion::raw::IntoRawMode;
-use types::{BackBuffer, Cmd, Cursor, GlobalData, Mode, Msg, Point, Utils};
+
 
 fn setup_stdin(mut stream: UnixStream) {
     std::thread::spawn(move || {
-        use termion::input::TermRead;
+        
         let stdin = std::io::stdin();
         let _stdout = std::io::stdout().into_raw_mode().unwrap(); // Need to turn it into raw mode
         let lock = stdin.lock();
@@ -23,7 +23,7 @@ fn setup_stdin(mut stream: UnixStream) {
     });
 }
 
-fn setup_stdout(mut stream: UnixStream) {
+fn setup_stdout(stream: UnixStream) {
     std::thread::spawn(move || {
         let stdout = std::io::stdout();
         let mut lock = stdout.lock();
@@ -38,7 +38,7 @@ fn setup_external_socket() -> UnixStream {
     UnixStream::connect("/tmp/myedit-stdin").expect("setting up socket")
 }
 
-fn setup_signals_handler(quit: Sender<()>) {
+fn setup_signals_handler(_quit: Sender<()>) {
     use signal_hook::iterator::Signals;
     use signal_hook::SIGWINCH;
     let signals = Signals::new(&[SIGWINCH]).unwrap();
@@ -49,7 +49,7 @@ fn setup_signals_handler(quit: Sender<()>) {
     });
 }
 
-fn launch_core(file: Option<std::path::PathBuf>) {
+fn launch_core(_file: Option<std::path::PathBuf>) {
     use std::process::Command;
     Command::new("cargo")
         .args(&["run", "--", "test_file.rs", "--core"])

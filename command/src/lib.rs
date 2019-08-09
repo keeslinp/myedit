@@ -1,13 +1,11 @@
 use ropey::Rope;
 use std::ffi::c_void;
-use std::sync::mpsc::Sender;
+
 use termion::{
-    cursor::{Goto, Show},
-    event::{Event, Key},
-    style, terminal_size,
+    cursor::{Goto, Show}, terminal_size,
 };
 use types::{
-    BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg,
+    BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, Mode, Msg,
     Point, Utils,
 };
 
@@ -32,7 +30,7 @@ pub fn render(
 ) {
     let mode = &global_data.clients[client].mode;
     let data = unsafe { Box::from_raw(data_ptr as *mut Data) };
-    let (cols, rows) = terminal_size().unwrap();
+    let (_cols, rows) = terminal_size().unwrap();
     let status_row_y = rows - 1;
     if *mode == Mode::Command {
         (utils.write_to_buffer)(
@@ -68,7 +66,7 @@ fn get_new_x_position(position: &Point, rope: &Rope) -> u16 {
 pub fn update(
     global_data: &mut GlobalData,
     msg: &Msg,
-    utils: &Utils,
+    _utils: &Utils,
     send_cmd: &Box<Fn(Cmd)>,
     data_ptr: *mut c_void,
 ) {

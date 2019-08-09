@@ -1,10 +1,6 @@
 use std::ffi::c_void;
 use std::sync::mpsc::Sender;
-use syntect::{
-    easy::HighlightLines,
-    highlighting::{Style, ThemeSet},
-    parsing::SyntaxSet,
-};
+
 use types::{BackBuffer, ClientIndex, Color, GlobalData, Msg, Point, Utils};
 
 #[derive(Debug)]
@@ -36,7 +32,7 @@ pub fn render(
 ) {
     let data: Box<Data> = unsafe { Box::from_raw(data_ptr as *mut Data) };
     let buffer = &global_data.buffers[global_data.clients[client].buffer];
-    let (cols, rows) = termion::terminal_size().unwrap();
+    let (_cols, rows) = termion::terminal_size().unwrap();
     for (index, line) in buffer
         .rope
         .lines()
