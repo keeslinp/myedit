@@ -15,14 +15,14 @@ struct State {
 #[no_mangle]
 pub fn render(
     global_data: &GlobalData,
-    client: ClientIndex,
+    client: &ClientIndex,
     back_buffer: &mut BackBuffer,
     utils: &Utils,
     data_ptr: *mut c_void,
 ) {
     let data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
-    let (cols, rows) = terminal_size().unwrap();
-    let display = match global_data.clients[client].mode {
+    let (cols, rows) = (100, 100);//terminal_size().unwrap();
+    let display = match global_data.clients[*client].mode {
         Mode::Normal => "NORMAL",
         Mode::Insert => "INSERT",
         Mode::Command => "COMMAND",
@@ -38,14 +38,17 @@ pub fn render(
         None,
         None,
     );
-    if global_data.clients[client].mode != Mode::Command {
-        println!(
+    use std::io::Write;
+    let mut stream = global_data.clients[*client].stream.try_clone().unwrap();
+    if global_data.clients[*client].mode != Mode::Command {
+        write!(
+            stream,
             "{}{}",
             Show,
             Goto(
                 global_data.cursor.position.x,
                 global_data.cursor.position.y + 1
-                    - global_data.buffers[global_data.clients[client].buffer].start_line as u16
+                    - global_data.buffers[global_data.clients[*client].buffer].start_line as u16
             )
         );
     }
@@ -68,7 +71,7 @@ pub fn update(
     global_data: &mut GlobalData,
     cmd: &Msg,
     _utils: &Utils,
-    send_cmd: &Box<Fn(Cmd)>,
+    send_cmd: &Box<Fn(ClientIndex, Cmd)>,
     data_ptr: *mut c_void,
 ) {
     let data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
@@ -106,7 +109,7 @@ pub fn update(
                                     {
                                         global_data.cursor.position.y += 1;
                                     }
-                                    let (_, rows) = terminal_size().expect("getting terminal size");
+                                    let (_, rows) = (100, 50); //terminal_size().expect("getting terminal size");
                                     if (global_data.cursor.position.y as usize)
                                         >= current_buffer.start_line + (rows as usize - 1)
                                     {
@@ -130,9 +133,9 @@ pub fn update(
                             get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
                         rope.insert_char(index, *c);
                         if *c == '\n' {
-                            send_cmd(MoveCursor(Direction::Down));
+                            send_cmd(*client, MoveCursor(Direction::Down));
                         } else {
-                            send_cmd(MoveCursor(Direction::Right));
+                            send_cmd(*client, MoveCursor(Direction::Right));
                         }
                     }
                 },

@@ -1,15 +1,8 @@
-use crossbeam_channel::{unbounded, Sender};
-
+use crossbeam_channel::{unbounded, bounded, Sender};
 use notify::{Watcher};
-
-
-
-
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixStream};
-
 use termion::raw::IntoRawMode;
-
 
 fn setup_stdin(mut stream: UnixStream) {
     std::thread::spawn(move || {
@@ -23,14 +16,18 @@ fn setup_stdin(mut stream: UnixStream) {
     });
 }
 
-fn setup_stdout(stream: UnixStream) {
+fn setup_stdout(stream: UnixStream, quit: Sender<()>) {
     std::thread::spawn(move || {
         let stdout = std::io::stdout();
         let mut lock = stdout.lock();
+        write!(lock, "{}", termion::clear::All);
+        lock.flush().unwrap();
         for byte in stream.bytes() {
-            write!(lock, "test");
+            // write!(lock, "read")
             lock.write_all(&[byte.unwrap()]);
+            lock.flush().unwrap();
         }
+        quit.send(()).unwrap();
     });
 }
 
@@ -44,25 +41,27 @@ fn setup_signals_handler(_quit: Sender<()>) {
     let signals = Signals::new(&[SIGWINCH]).unwrap();
     std::thread::spawn(move || {
         for _ in signals.forever() {
-            // quit.send(());
         }
     });
 }
 
-fn launch_core(_file: Option<std::path::PathBuf>) {
-    use std::process::Command;
+fn launch_core(file: Option<std::path::PathBuf>) {
+    use std::process::{Command, Stdio };
     Command::new("cargo")
-        .args(&["run", "--", "test_file.rs", "--core"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .args(&["run", &file.and_then(|val| val.to_str().map(|s| s.to_owned())).unwrap_or(String::new()), "--core"])
         .spawn();
 }
 
 pub fn start(file: Option<std::path::PathBuf>) {
     launch_core(file);
+    std::thread::sleep(std::time::Duration::from_secs(1));
     let stream = setup_external_socket();
-    let (tx, rx) = unbounded();
-    setup_signals_handler(tx);
+    let (tx, rx) = bounded(1);
+    setup_signals_handler(tx.clone());
     setup_stdin(stream.try_clone().unwrap());
-    setup_stdout(stream.try_clone().unwrap());
+    setup_stdout(stream.try_clone().unwrap(), tx);
     let _ = rx.recv();
     println!("all done");
 }

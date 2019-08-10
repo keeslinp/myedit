@@ -1,11 +1,12 @@
+use log::info;
 use ropey::Rope;
-use types::{Buffer, Cmd, GlobalData, Msg, ClientIndex};
+use types::{Buffer, Cmd, GlobalData, Msg, ClientIndex, KeyData};
 #[no_mangle]
-pub fn render(_global_data: &GlobalData) {}
+pub fn render(global_data: &GlobalData) {}
 
 fn load_buffer(global_data: &mut GlobalData, client: ClientIndex, file_path: std::path::PathBuf) {
     let buffer_key = global_data.buffer_keys.insert(());
-    let _new_buffer = global_data.buffers.insert(buffer_key, Buffer {
+    global_data.buffers.insert(buffer_key, Buffer {
         rope: Rope::from_reader(std::fs::File::open(&file_path).expect("loading file"))
             .expect("building rope"),
         source: file_path,
@@ -32,7 +33,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg) {
                 }
             }
             WriteBuffer(path) => {
-                let file = std::fs::File::create(path).expect("opening file");
+                let mut file = std::fs::File::create(path).expect("opening file");
                 global_data.buffers[global_data.clients[*client].buffer]
                     .rope
                     .write_to(file)
@@ -40,11 +41,9 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg) {
             }
             SearchFiles => {
                 use std::process::Command;
-                // Command::new("tmux")
-                //     .args(&["split-pane", "sk"])
-                //     .spawn().unwrap();
+                let key_data: KeyData = KeyData::from(client.clone());
                 Command::new("tmux")
-                    .args(&["split-pane", "sk | xargs -0 -I {} cargo run -- --target test_client --command \"edit {}\""])
+                    .args(&["split-pane", &format!("sk | xargs -0 -I {{}} cargo run -- --target {} --command \"edit {{}}\"", key_data.as_ffi())])
                     .spawn().expect("spawning sk in tmux pane");
             }
             _ => {}

@@ -25,14 +25,14 @@ fn color_from_syntect_color(color: &syntect::highlighting::Color) -> Color {
 #[no_mangle]
 pub fn render(
     global_data: &GlobalData,
-    client: ClientIndex,
+    client: &ClientIndex,
     back_buffer: &mut BackBuffer,
     utils: &Utils,
     data_ptr: *mut c_void,
 ) {
     let data: Box<Data> = unsafe { Box::from_raw(data_ptr as *mut Data) };
-    let buffer = &global_data.buffers[global_data.clients[client].buffer];
-    let (_cols, rows) = termion::terminal_size().unwrap();
+    let buffer = &global_data.buffers[global_data.clients[*client].buffer];
+    let (_cols, rows) = (100, 50);//termion::terminal_size().unwrap();
     for (index, line) in buffer
         .rope
         .lines()
@@ -40,13 +40,14 @@ pub fn render(
         .take(rows as usize - 1)
         .enumerate()
     {
+        // eprintln!("{}", line.len_chars());
         (utils.write_to_buffer)(
             back_buffer,
             &Point {
                 x: 0,
                 y: index as u16,
             },
-            line.as_str().unwrap(),
+            line.as_str().unwrap_or(""),
             None,
             None,
             None,

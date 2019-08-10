@@ -8,6 +8,10 @@ use std::ffi::c_void;
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::{fs, path, time};
+use log::{debug, info, LevelFilter};
+use log4rs::append::file::FileAppender;
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::config::{Appender, Config, Logger, Root};
 
 use types::{
     BackBuffer, Client, ClientIndex, Cmd, Cursor, GlobalData, Mode, Msg, Point, RemoteCommand,
@@ -21,7 +25,7 @@ use crate::utils;
 struct DynLib {
     lib: libloading::Library,
     render_fn:
-        Symbol<extern "C" fn(&GlobalData, ClientIndex, &mut BackBuffer, &Utils, *mut c_void)>,
+        Symbol<extern "C" fn(&GlobalData, &ClientIndex, &mut BackBuffer, &Utils, *mut c_void)>,
     update_fn: Symbol<
         extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(ClientIndex, Cmd)>, *mut c_void),
     >,
@@ -47,7 +51,7 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
     unsafe {
         let lib = libloading::Library::new(copy_path).expect("loading lib");
         let render_fn: libloading::Symbol<
-            extern "C" fn(&GlobalData, ClientIndex, &mut BackBuffer, &Utils, *mut c_void),
+            extern "C" fn(&GlobalData, &ClientIndex, &mut BackBuffer, &Utils, *mut c_void),
         > = lib.get(b"render").expect("loading render function");
         let update_fn: libloading::Symbol<
             extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(ClientIndex, Cmd)>, *mut c_void),
@@ -90,7 +94,7 @@ fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
 }
 
 fn initial_state() -> GlobalData {
-    use slotmap::{SecondaryMap, SlotMap};
+    use types::{SecondaryMap, SlotMap};
     let buffer = Default::default();
     let mut buffer_keys = SlotMap::new();
     let current_buffer = buffer_keys.insert(());
@@ -132,7 +136,7 @@ fn setup_external_socket(msg_sender: Sender<Msg>) {
                         .expect("sending command in message");
                 }
                 Err(err) => {
-                    println!("Error: {}", err);
+                    // println!("Error: {}", err);
                     break;
                 }
             }
@@ -142,19 +146,11 @@ fn setup_external_socket(msg_sender: Sender<Msg>) {
 
 fn handle_client_input(client_index: ClientIndex, stream: UnixStream, msg_sender: Sender<Msg>) {
     std::thread::spawn(move || {
-        use termion::event::parse_event;
-        let mut bytes = stream.bytes();
-        loop {
-            let byte = bytes.next();
-            if let Some(Ok(byte)) = byte {
-                if let Ok(evt) = parse_event(byte, &mut bytes) {
-                    msg_sender
-                        .send(Msg::StdinEvent(client_index, evt))
-                        .expect("sending stdin event from client");
-                }
-            } else {
-                break;
-            }
+        use termion::input::TermRead;
+        for event in stream.events() {
+            msg_sender
+                .send(Msg::StdinEvent(client_index, event.unwrap()))
+                .expect("sending stdin event from client");
         }
     });
 }
@@ -188,28 +184,36 @@ fn setup_client_listener(msg_sender: Sender<Msg>) {
 //     });
 // }
 
-pub fn start(_file: Option<std::path::PathBuf>) {
+fn setup_logging() {
+    let logfile = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+        .append(false)
+        .build("output.log").expect("logging setup");
+    let config = Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .build(Root::builder()
+                   .appender("logfile")
+                   .build(LevelFilter::Info)).unwrap();
+    log4rs::init_config(config).unwrap();
+    info!("Hello World");
+}
+
+pub fn start(file: Option<std::path::PathBuf>) {
+    setup_logging();
     let mut global_data = initial_state();
     let utils = utils::build_utils();
     let (msg_sender, msg_receiver) = unbounded::<Msg>();
     let mut watcher = setup_watcher(msg_sender.clone());
     let mut libraries: HashMap<String, DynLib> = load_libs(&mut watcher);
 
-    // if let Some(file) = file {
-    //     msg_sender
-    //         .send(Msg::Cmd(Cmd::LoadFile(file)))
-    //         .expect("loading initial file");
-    // }
-    // setup_event_handler(msg_sender.clone());
     setup_external_socket(msg_sender.clone());
-    // setup_signals_handler(msg_sender.clone());
     setup_client_listener(msg_sender.clone());
-    println!("{}", termion::clear::All);
     let clone = msg_sender.clone();
     // This is witchcraft to account for channels not liking getting moved across dynamic boundaries :/
     let cmd_handler: Box<Fn(ClientIndex, Cmd)> =
         Box::new(move |client_index, msg| clone.send(Msg::Cmd(client_index, msg)).unwrap());
     for msg in msg_receiver.iter() {
+        info!("message ->{:?}", msg);
         match msg {
             Msg::LibraryEvent(ref event) => match event {
                 DebouncedEvent::Create(ref path) => {
@@ -255,6 +259,11 @@ pub fn start(_file: Option<std::path::PathBuf>) {
                 let index = global_data.client_keys.insert(());
                 global_data.clients.insert(index, client);
                 handle_client_input(index, stream_clone, msg_sender.clone());
+                if let Some(ref file) = file {
+                    msg_sender
+                        .send(Msg::Cmd(index, Cmd::LoadFile(file.to_path_buf())))
+                        .expect("loading initial file");
+                }
             }
             _ => {} // handled in libs
         }
@@ -266,8 +275,9 @@ pub fn start(_file: Option<std::path::PathBuf>) {
             // Don't bother rendering if there is more in the pipeline
             for client in global_data.client_keys.keys() {
                 let mut new_back_buffer = back_buffer::create_back_buffer();
-                for (_path, lib) in libraries.iter() {
-                    (*lib.render_fn)(&global_data, client, &mut new_back_buffer, &utils, lib.data);
+                for (path, lib) in libraries.iter() {
+                    info!("rendering: {}", path);
+                    (*lib.render_fn)(&global_data, &client, &mut new_back_buffer, &utils, lib.data);
                 }
                 back_buffer::update_stdout(&global_data.clients[client].back_buffer, &new_back_buffer, global_data.clients[client].stream.try_clone().unwrap());
                 global_data.clients[client].back_buffer = new_back_buffer;

@@ -14,7 +14,7 @@ struct Opt {
     #[structopt(name = "command", long = "command")]
     sub_command: Option<String>,
     #[structopt(name = "target", long = "target")]
-    target: Option<String>,
+    target: Option<u64>,
     #[structopt(parse(from_os_str))]
     input: Option<std::path::PathBuf>,
     #[structopt(name = "core", long = "core")]
@@ -41,7 +41,7 @@ fn main() {
         match opt.sub_command {
             Some(command) => {
                 if let Some(target) = opt.target {
-                    send_cmd::send(target.as_str(), command.as_str());
+                    send_cmd::send(target, command.as_str());
                 } else {
                     panic!("Cannot pass command without target");
                 }

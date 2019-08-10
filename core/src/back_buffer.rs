@@ -63,13 +63,12 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer, out: impl
         cursor::{Goto, HideCursor, Restore, Save, Show},
         style::Reset,
     };
-    let mut writer = HideCursor::from(out);
+    let mut writer = out;//HideCursor::from(out);
     let mut x = 1;
-    let mut y = 2;
+    let mut y = 1;
     write!(writer, "{}", Save).unwrap();
     for (old_cell, new_cell) in old_buffer.cells.iter().zip(new_buffer.cells.iter()) {
         if old_cell != new_cell {
-            
             write!(writer, "{}{}", Goto(x, y), Reset).unwrap();
             if let Some(ref fg) = new_cell.fg {
                 write!(writer, "\x1b[38;2;{};{};{}m", fg.r, fg.g, fg.b).unwrap();
@@ -78,7 +77,6 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer, out: impl
                 write!(writer, "\x1b[48;2;{};{};{}m", bg.r, bg.g, bg.b).unwrap();
             }
             if let Some(c) = new_cell.value {
-                if c == '\n' {}
                 write!(writer, "{}", c).unwrap();
             } else {
                 write!(writer, " ").unwrap();
@@ -96,7 +94,7 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer, out: impl
 
 pub fn create_back_buffer() -> BackBuffer {
     // TODO: Figure out the client size
-    let (cols, rows) = (500, 500); //termion::terminal_size().unwrap();
+    let (cols, rows) = (100, 50); //termion::terminal_size().unwrap();
     let total_cell_count = cols * rows;
     let mut cells = Vec::with_capacity(total_cell_count as usize);
     for _ in 0..total_cell_count {

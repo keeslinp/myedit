@@ -23,14 +23,14 @@ struct Data {
 #[no_mangle]
 pub fn render(
     global_data: &GlobalData,
-    client: ClientIndex,
+    client: &ClientIndex,
     back_buffer: &mut BackBuffer,
     utils: &Utils,
     data_ptr: *mut c_void,
 ) {
-    let mode = &global_data.clients[client].mode;
+    let mode = &global_data.clients[*client].mode;
     let data = unsafe { Box::from_raw(data_ptr as *mut Data) };
-    let (_cols, rows) = terminal_size().unwrap();
+    let (_cols, rows) = (100, 50);//terminal_size().unwrap();
     let status_row_y = rows - 1;
     if *mode == Mode::Command {
         (utils.write_to_buffer)(
@@ -41,7 +41,10 @@ pub fn render(
             None,
             None,
         );
-        println!(
+        use std::io::Write;
+        let mut stream = global_data.clients[*client].stream.try_clone().unwrap();
+        write!(
+            stream,
             "{}{}",
             Show,
             Goto(data.command_buffer.index as u16 + 2, status_row_y)
@@ -67,7 +70,7 @@ pub fn update(
     global_data: &mut GlobalData,
     msg: &Msg,
     _utils: &Utils,
-    send_cmd: &Box<Fn(Cmd)>,
+    send_cmd: &Box<Fn(ClientIndex, Cmd)>,
     data_ptr: *mut c_void,
 ) {
     let mut data = unsafe { Box::from_raw(data_ptr as *mut Data) };
@@ -86,7 +89,7 @@ pub fn update(
                                     .source
                                     .clone(),
                             );
-                        send_cmd(Cmd::WriteBuffer(path));
+                        send_cmd(*client, Cmd::WriteBuffer(path));
                     }
                     Some("e") => {
                         let path = command_words
@@ -97,22 +100,22 @@ pub fn update(
                                     .source
                                     .clone(),
                             );
-                        send_cmd(Cmd::LoadFile(path));
+                        send_cmd(*client, Cmd::LoadFile(path));
                     }
-                    Some("q") => send_cmd(Cmd::Quit),
+                    Some("q") => send_cmd(*client, Cmd::Quit),
                     Some("wq") => {
-                        send_cmd(Cmd::WriteBuffer(
+                        send_cmd(*client, Cmd::WriteBuffer(
                             global_data.buffers[global_data.clients[*client].buffer]
                                 .source
                                 .clone(),
                         ));
-                        send_cmd(Cmd::Quit);
+                        send_cmd(*client, Cmd::Quit);
                     }
                     _ => {
                         // Unknown command
                     }
                 }
-                send_cmd(Cmd::ChangeMode(Mode::Normal));
+                send_cmd(*client, Cmd::ChangeMode(Mode::Normal));
             }
             Cmd::ChangeMode(mode) => {
                 if *mode == Mode::Command {
@@ -125,17 +128,19 @@ pub fn update(
                     data.command_buffer
                         .text
                         .insert(data.command_buffer.index, *c);
-                    send_cmd(MoveCursor(Direction::Right));
+                    send_cmd(*client, MoveCursor(Direction::Right));
                 }
                 _ => {}
             },
             DeleteChar(dir) => match global_data.clients[*client].mode {
                 Mode::Command => match dir {
                     DeleteDirection::Before => {
-                        data.command_buffer
-                            .text
-                            .remove(data.command_buffer.index - 1);
-                        send_cmd(MoveCursor(Direction::Left));
+                        if data.command_buffer.index > 0 {
+                            data.command_buffer
+                                .text
+                                .remove(data.command_buffer.index - 1);
+                            send_cmd(*client, MoveCursor(Direction::Left));
+                        }
                     }
                     DeleteDirection::After => {}
                 },

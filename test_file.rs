@@ -1,9 +1,9 @@
-use std::any::Any;
-use termion::{color, style};
+testuse std::any::Any; test
+testuse termion::{color, style};
 use types::{GlobalData, Msg};
 
 struct LocalData {}
-
+test
 #[no_mangle]
 pub fn render(global_data: &GlobalData) {
     print!(

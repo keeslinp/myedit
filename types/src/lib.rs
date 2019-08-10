@@ -1,6 +1,6 @@
 use notify::DebouncedEvent;
 use ropey::Rope;
-use slotmap::{DefaultKey, SecondaryMap, SlotMap};
+pub use slotmap::{DefaultKey, SecondaryMap, SlotMap, KeyData};
 use std::os::unix::net::UnixStream;
 
 use termion::event::Event;

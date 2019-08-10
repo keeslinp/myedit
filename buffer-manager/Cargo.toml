@@ -13,3 +13,4 @@ crate-type = ["dylib"]
 [dependencies]
 ropey = "1.0.1"
 types = { path = "../types" }
+log = "0.4.8"
