@@ -31,7 +31,7 @@ pub fn render(
     let mode = &global_data.clients[*client].mode;
     let data = unsafe { Box::from_raw(data_ptr as *mut Data) };
     let (_cols, rows) = (100, 50);//terminal_size().unwrap();
-    let status_row_y = rows - 1;
+    let status_row_y = rows;
     if *mode == Mode::Command {
         (utils.write_to_buffer)(
             back_buffer,
@@ -110,7 +110,8 @@ pub fn update(
                                 .clone(),
                         ));
                         send_cmd(*client, Cmd::Quit);
-                    }
+                    },
+                    Some("kill") => send_cmd(*client, Cmd::Kill),
                     _ => {
                         // Unknown command
                     }

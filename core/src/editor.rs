@@ -72,10 +72,9 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
 }
 
 // #[cfg(debug_assertion)]
-const LIB_LOC: &'static str = "./target/debug";
-
+// const LIB_LOC: &'static str = "./target/debug";
+const LIB_LOC: &'static str = "./target/release";
 // #[cfg(not(debug_assertion))]
-// const LIB_LOC: &'static str = "./target/release";
 
 fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
     use std::fs::read_dir;
@@ -211,6 +210,13 @@ pub fn start(file: Option<std::path::PathBuf>) {
         Box::new(move |client_index, msg| clone.send(Msg::Cmd(client_index, msg)).unwrap());
     for msg in msg_receiver.iter() {
         info!("message ->{:?}", msg);
+        if let Msg::Cmd(ref client, _) = msg {
+            // If the client quit don't do anything
+            if !global_data.client_keys.contains_key(*client) {
+                info!("ignoring message becasue client is gone");
+                continue;
+            }
+        }
         match msg {
             Msg::LibraryEvent(ref event) => match event {
                 DebouncedEvent::Create(ref path) => {
@@ -228,14 +234,20 @@ pub fn start(file: Option<std::path::PathBuf>) {
                     Event::Key(Key::Ctrl('c')) => return,
                     _ => {}
                 }
-            }
+            },
             Msg::Cmd(client_index, Cmd::Quit) => {
                 // TODO: don't crash
                 global_data.clients[client_index]
                     .stream
                     .shutdown(std::net::Shutdown::Both);
+                global_data.clients.remove(client_index);
+                global_data.client_keys.remove(client_index);
+                // Don't want to have other libs try to run this event
+                continue;
+            },
+            Msg::Cmd(_client, Cmd::Kill) => {
                 return;
-            }
+            },
             Msg::Cmd(client, Cmd::CleanRender) => {
                 // TODO: Clean client
                 write!(global_data.clients[client].stream, "{}", termion::clear::All);
@@ -266,7 +278,8 @@ pub fn start(file: Option<std::path::PathBuf>) {
             _ => {} // handled in libs
         }
 
-        for (_path, lib) in libraries.iter() {
+        for (path, lib) in libraries.iter() {
+            info!("updating: {}", path);
             (*lib.update_fn)(&mut global_data, &msg, &utils, &cmd_handler, lib.data);
         }
         if msg_sender.is_empty() {

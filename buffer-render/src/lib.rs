@@ -14,13 +14,13 @@ impl Default for Data {
     }
 }
 
-fn color_from_syntect_color(color: &syntect::highlighting::Color) -> Color {
-    Color {
-        r: color.r,
-        g: color.g,
-        b: color.b,
-    }
-}
+// fn color_from_syntect_color(color: &syntect::highlighting::Color) -> Color {
+//     Color {
+//         r: color.r,
+//         g: color.g,
+//         b: color.b,
+//     }
+// }
 
 #[no_mangle]
 pub fn render(

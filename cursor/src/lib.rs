@@ -27,7 +27,7 @@ pub fn render(
     data_ptr: *mut c_void,
 ) {
     let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
-    let (cols, rows) = (100, 100);//terminal_size().unwrap();
+    let (cols, rows) = (100, 50);//terminal_size().unwrap();
     let display = match global_data.clients[*client].mode {
         Mode::Normal => "NORMAL",
         Mode::Insert => "INSERT",
@@ -111,7 +111,7 @@ pub fn update(
                                 }
                                 Right => cursor.position.x += 1,
                                 Up => {
-                                    if cursor.position.y > 1 {
+                                    if cursor.position.y > 0 {
                                         cursor.position.y -= 1;
                                     }
                                     if (cursor.position.y as usize)

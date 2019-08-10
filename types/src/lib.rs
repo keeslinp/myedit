@@ -95,6 +95,7 @@ pub struct RemoteCommand(pub ClientIndex, pub Cmd);
 pub enum Cmd {
     MoveCursor(Direction),
     Quit,
+    Kill,
     ChangeMode(Mode),
     InsertChar(char),
     DeleteChar(DeleteDirection),

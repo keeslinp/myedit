@@ -43,7 +43,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils) {
                 use std::process::Command;
                 let key_data: KeyData = KeyData::from(client.clone());
                 Command::new("tmux")
-                    .args(&["split-pane", &format!("sk | xargs -0 -I {{}} cargo run -- --target {} --command \"edit {{}}\"", key_data.as_ffi())])
+                    .args(&["split-pane", &format!("sk | xargs -0 -I {{}} cargo run --release -- --target {} --command \"edit {{}}\"", key_data.as_ffi())])
                     .spawn().expect("spawning sk in tmux pane");
             }
             _ => {}

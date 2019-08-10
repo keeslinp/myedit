@@ -11,7 +11,7 @@ fn setup_stdin(mut stream: UnixStream) {
         let _stdout = std::io::stdout().into_raw_mode().unwrap(); // Need to turn it into raw mode
         let lock = stdin.lock();
         for byte in lock.bytes() {
-            stream.write(&[byte.unwrap()]);
+            stream.write(&[byte.expect("reading bytes")]);
         }
     });
 }
@@ -45,18 +45,24 @@ fn setup_signals_handler(_quit: Sender<()>) {
     });
 }
 
-fn launch_core(file: Option<std::path::PathBuf>) {
-    use std::process::{Command, Stdio };
-    Command::new("cargo")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .args(&["run", &file.and_then(|val| val.to_str().map(|s| s.to_owned())).unwrap_or(String::new()), "--core"])
-        .spawn();
+fn launch_core(file: Option<std::path::PathBuf>) -> bool {
+    use std::process::{Command, Stdio};
+    if !std::path::Path::new("/tmp/myedit-stdin").exists() {
+        Command::new("cargo")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .args(&["run", "--release", &file.and_then(|val| val.to_str().map(|s| s.to_owned())).unwrap_or(String::new()), "--core"])
+            .spawn();
+        true
+    } else {
+        false
+    }
 }
 
 pub fn start(file: Option<std::path::PathBuf>) {
-    launch_core(file);
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    if (launch_core(file)) {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
     let stream = setup_external_socket();
     let (tx, rx) = bounded(1);
     setup_signals_handler(tx.clone());
