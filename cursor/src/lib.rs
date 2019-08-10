@@ -4,12 +4,18 @@ use termion::{
     cursor::{Goto, Show}, terminal_size,
 };
 use types::{
-    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils, ClientIndex,
+    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils, ClientIndex, SecondaryMap, BufferIndex,
 };
+
+
+#[derive(Debug, Default)]
+pub struct Cursor {
+    pub position: Point,
+}
 
 #[derive(Debug, Default)]
 struct State {
-    value: u8,
+    cursors: SecondaryMap<BufferIndex, Cursor>,
 }
 
 #[no_mangle]
@@ -20,7 +26,7 @@ pub fn render(
     utils: &Utils,
     data_ptr: *mut c_void,
 ) {
-    let data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
+    let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     let (cols, rows) = (100, 100);//terminal_size().unwrap();
     let display = match global_data.clients[*client].mode {
         Mode::Normal => "NORMAL",
@@ -40,15 +46,17 @@ pub fn render(
     );
     use std::io::Write;
     let mut stream = global_data.clients[*client].stream.try_clone().unwrap();
+    let cursor = get_or_insert_cursor(&mut data, &global_data, client);
+    let current_buffer = global_data.clients[*client].buffer;
     if global_data.clients[*client].mode != Mode::Command {
         write!(
             stream,
             "{}{}",
             Show,
             Goto(
-                global_data.cursor.position.x,
-                global_data.cursor.position.y + 1
-                    - global_data.buffers[global_data.clients[*client].buffer].start_line as u16
+                cursor.position.x,
+                cursor.position.y + 1
+                    - global_data.buffers[current_buffer].start_line as u16
             )
         );
     }
@@ -66,6 +74,14 @@ fn get_new_x_position(position: &Point, rope: &Rope) -> u16 {
     )
 }
 
+fn get_or_insert_cursor<'a>(data: &'a mut Box<State>, global_data: &GlobalData, client: &ClientIndex) -> &'a mut Cursor {
+    let buffer_index = global_data.clients[*client].buffer;
+    if !data.cursors.contains_key(buffer_index) {
+        data.cursors.insert(buffer_index, std::default::Default::default());
+    }
+    &mut data.cursors[buffer_index]
+}
+
 #[no_mangle]
 pub fn update(
     global_data: &mut GlobalData,
@@ -74,10 +90,11 @@ pub fn update(
     send_cmd: &Box<Fn(ClientIndex, Cmd)>,
     data_ptr: *mut c_void,
 ) {
-    let data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
+    let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     use Cmd::*;
     match cmd {
         Msg::Cmd(client, cmd) => {
+            let cursor = get_or_insert_cursor(&mut data, &global_data, client);
             let current_buffer = &mut global_data.buffers[global_data.clients[*client].buffer];
             let rope = &mut current_buffer.rope;
             match cmd {
@@ -88,29 +105,29 @@ pub fn update(
                         _ => {
                             match dir {
                                 Left => {
-                                    if global_data.cursor.position.x > 1 {
-                                        global_data.cursor.position.x -= 1
+                                    if cursor.position.x > 1 {
+                                        cursor.position.x -= 1
                                     }
                                 }
-                                Right => global_data.cursor.position.x += 1,
+                                Right => cursor.position.x += 1,
                                 Up => {
-                                    if global_data.cursor.position.y > 1 {
-                                        global_data.cursor.position.y -= 1;
+                                    if cursor.position.y > 1 {
+                                        cursor.position.y -= 1;
                                     }
-                                    if (global_data.cursor.position.y as usize)
+                                    if (cursor.position.y as usize)
                                         < current_buffer.start_line
                                     {
                                         current_buffer.start_line -= 1;
                                     }
                                 }
                                 Down => {
-                                    if (global_data.cursor.position.y as usize) + 1
+                                    if (cursor.position.y as usize) + 1
                                         < rope.len_lines()
                                     {
-                                        global_data.cursor.position.y += 1;
+                                        cursor.position.y += 1;
                                     }
                                     let (_, rows) = (100, 50); //terminal_size().expect("getting terminal size");
-                                    if (global_data.cursor.position.y as usize)
+                                    if (cursor.position.y as usize)
                                         >= current_buffer.start_line + (rows as usize - 1)
                                     {
                                         current_buffer.start_line += 1;
@@ -118,8 +135,8 @@ pub fn update(
                                 }
                             }
                             // Make sure we don't venture to nowhere
-                            global_data.cursor.position.x =
-                                get_new_x_position(&global_data.cursor.position, &rope);
+                            cursor.position.x =
+                                get_new_x_position(&cursor.position, &rope);
                         }
                     }
                 }
@@ -130,7 +147,7 @@ pub fn update(
                     Mode::Command => {}
                     _ => {
                         let index =
-                            get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
+                            get_ropey_index_from_cursor(&cursor.position, &rope);
                         rope.insert_char(index, *c);
                         if *c == '\n' {
                             send_cmd(*client, MoveCursor(Direction::Down));
@@ -143,15 +160,15 @@ pub fn update(
                     Mode::Command => {}
                     _ => {
                         let index =
-                            get_ropey_index_from_cursor(&global_data.cursor.position, &rope);
+                            get_ropey_index_from_cursor(&cursor.position, &rope);
                         match dir {
                             DeleteDirection::After => {
                                 rope.remove(index..index + 1);
                             }
                             DeleteDirection::Before => {
-                                if global_data.cursor.position.x > 1 {
+                                if cursor.position.x > 1 {
                                     rope.remove(index - 1..index);
-                                    global_data.cursor.position.x -= 1
+                                    cursor.position.x -= 1
                                 }
                             }
                         }
@@ -161,7 +178,7 @@ pub fn update(
                     use JumpType::*;
                     match jump_type {
                         EndOfLine => {
-                            let mut position = &mut global_data.cursor.position;
+                            let mut position = &mut cursor.position;
                             position.x = global_data.buffers
                                 [global_data.clients[*client].buffer]
                                 .rope
@@ -169,11 +186,11 @@ pub fn update(
                                 .len_chars() as u16
                         }
                         StartOfLine => {
-                            global_data.cursor.position.x = 1;
+                            cursor.position.x = 1;
                         }
                         _ => {}
                     }
-                }
+                },
                 _ => {}
             }
         }
@@ -186,7 +203,7 @@ use std::ffi::c_void;
 
 #[no_mangle]
 pub fn init() -> *mut c_void {
-    unsafe { Box::into_raw(Box::new(State::default())) as *mut c_void }
+    Box::into_raw(Box::new(State::default())) as *mut c_void
 }
 
 #[no_mangle]

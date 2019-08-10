@@ -7,18 +7,14 @@ use termion::event::Event;
 
 pub type ClientIndex = DefaultKey;
 
-#[derive(Debug)]
-pub struct GlobalData {
-    pub buffer_keys: SlotMap<DefaultKey, ()>,
-    pub buffers: SecondaryMap<DefaultKey, Buffer>,
-    pub cursor: Cursor,
-    pub client_keys: SlotMap<ClientIndex, ()>,
-    pub clients: SecondaryMap<ClientIndex, Client>,
-}
+pub type BufferIndex = DefaultKey;
 
 #[derive(Debug)]
-pub struct Cursor {
-    pub position: Point,
+pub struct GlobalData {
+    pub buffer_keys: SlotMap<BufferIndex, ()>,
+    pub buffers: SecondaryMap<BufferIndex, Buffer>,
+    pub client_keys: SlotMap<ClientIndex, ()>,
+    pub clients: SecondaryMap<ClientIndex, Client>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -126,7 +122,7 @@ pub enum Msg {
     NewClient(UnixStream),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct Point {
     pub x: u16,
     pub y: u16,
@@ -141,4 +137,7 @@ pub struct Rect {
 pub struct Utils {
     pub write_to_buffer:
         fn(&mut BackBuffer, &Point, &str, Option<Style>, Option<Color>, Option<Color>),
+    pub info: fn(String),
+    pub debug: fn(String),
+    pub warn: fn(String),
 }

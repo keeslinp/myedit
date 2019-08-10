@@ -1,6 +1,5 @@
-use log::info;
 use ropey::Rope;
-use types::{Buffer, Cmd, GlobalData, Msg, ClientIndex, KeyData};
+use types::{Buffer, Cmd, GlobalData, Msg, ClientIndex, KeyData, Utils};
 #[no_mangle]
 pub fn render(global_data: &GlobalData) {}
 
@@ -16,11 +15,12 @@ fn load_buffer(global_data: &mut GlobalData, client: ClientIndex, file_path: std
 }
 
 #[no_mangle]
-pub fn update(global_data: &mut GlobalData, msg: &Msg) {
+pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils) {
     use Cmd::*;
     match msg {
         Msg::Cmd(ref client, cmd) => match cmd {
             LoadFile(file_path) => {
+                (utils.info)(format!("Loading buffer: {}", file_path.to_str().unwrap_or("invalid file")));
                 let maybe_index = global_data
                     .buffers
                     .iter()

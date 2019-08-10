@@ -14,7 +14,7 @@ use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config, Logger, Root};
 
 use types::{
-    BackBuffer, Client, ClientIndex, Cmd, Cursor, GlobalData, Mode, Msg, Point, RemoteCommand,
+    BackBuffer, Client, ClientIndex, Cmd, GlobalData, Mode, Msg, Point, RemoteCommand,
     Utils,
 };
 
@@ -103,9 +103,6 @@ fn initial_state() -> GlobalData {
     GlobalData {
         buffer_keys,
         buffers,
-        cursor: Cursor {
-            position: Point { x: 1, y: 1 },
-        },
         clients: SecondaryMap::new(),
         client_keys: SlotMap::new(),
     }
@@ -221,6 +218,7 @@ pub fn start(file: Option<std::path::PathBuf>) {
                     libraries.remove(key);
                     let lib = load_lib(path);
                     libraries.insert(key.to_string(), lib);
+                    info!("Reloaded lib: {}", &key);
                 }
                 _ => {}
             },
