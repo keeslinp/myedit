@@ -11,6 +11,7 @@ use types::{
 #[derive(Debug, Default)]
 pub struct Cursor {
     pub position: Point,
+    pub stored_x: u16,
 }
 
 #[derive(Debug, Default)]
@@ -54,7 +55,7 @@ pub fn render(
             "{}{}",
             Show,
             Goto(
-                cursor.position.x,
+                cursor.position.x + 4, // +4 for line numbers
                 cursor.position.y + 1
                     - global_data.buffers[current_buffer].start_line as u16
             )
@@ -67,9 +68,10 @@ fn get_ropey_index_from_cursor(position: &Point, rope: &Rope) -> usize {
     rope.line_to_char(position.y as usize) + position.x as usize - 1
 }
 
-fn get_new_x_position(position: &Point, rope: &Rope) -> u16 {
+fn get_new_x_position(cursor: &Cursor, rope: &Rope) -> u16 {
+    let Cursor { position, stored_x } = cursor;
     std::cmp::min(
-        position.x,
+        std::cmp::max(position.x, *stored_x),
         rope.line(position.y as usize).len_chars() as u16,
     )
 }
@@ -108,8 +110,12 @@ pub fn update(
                                     if cursor.position.x > 1 {
                                         cursor.position.x -= 1
                                     }
+                                    cursor.stored_x = cursor.position.x;
                                 }
-                                Right => cursor.position.x += 1,
+                                Right => {
+                                    cursor.position.x += 1;
+                                    cursor.stored_x = cursor.position.x;
+                                }
                                 Up => {
                                     if cursor.position.y > 0 {
                                         cursor.position.y -= 1;
@@ -136,7 +142,7 @@ pub fn update(
                             }
                             // Make sure we don't venture to nowhere
                             cursor.position.x =
-                                get_new_x_position(&cursor.position, &rope);
+                                get_new_x_position(&cursor, &rope);
                         }
                     }
                 }

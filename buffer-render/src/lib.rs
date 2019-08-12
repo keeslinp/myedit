@@ -33,9 +33,10 @@ pub fn render(
     let data: Box<Data> = unsafe { Box::from_raw(data_ptr as *mut Data) };
     let buffer = &global_data.buffers[global_data.clients[*client].buffer];
     let (_cols, rows) = (100, 50);//termion::terminal_size().unwrap();
-    for (index, line) in buffer
+    for (index, (line_number, line)) in buffer
         .rope
         .lines()
+        .enumerate()
         .skip(buffer.start_line)
         .take(rows as usize - 1)
         .enumerate()
@@ -45,6 +46,17 @@ pub fn render(
             back_buffer,
             &Point {
                 x: 0,
+                y: index as u16,
+            },
+            &format!("{}", line_number + 1),
+            None,
+            None,
+            None,
+        );
+        (utils.write_to_buffer)(
+            back_buffer,
+            &Point {
+                x: 4,
                 y: index as u16,
             },
             line.as_str().unwrap_or(""),
