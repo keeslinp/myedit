@@ -6,7 +6,7 @@ use termion::{
 };
 use types::{
     BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, Mode, Msg,
-    Point, Utils,
+    Point, Utils, Rect
 };
 
 #[derive(Debug, Default)]
@@ -30,25 +30,26 @@ pub fn render(
 ) {
     let mode = &global_data.clients[*client].mode;
     let data = unsafe { Box::from_raw(data_ptr as *mut Data) };
-    let (_cols, rows) = (100, 50);//terminal_size().unwrap();
-    let status_row_y = rows;
-    if *mode == Mode::Command {
-        (utils.write_to_buffer)(
-            back_buffer,
-            &Point { x: 0, y: rows - 1 },
-            &format!(":{}", data.command_buffer.text),
-            None,
-            None,
-            None,
-        );
-        use std::io::Write;
-        let mut stream = global_data.clients[*client].stream.try_clone().unwrap();
-        write!(
-            stream,
-            "{}{}",
-            Show,
-            Goto(data.command_buffer.index as u16 + 2, status_row_y)
-        );
+    if let Some(Rect { w, h }) = global_data.clients[*client].size {
+        let status_row_y = h - 1;
+        if *mode == Mode::Command {
+            (utils.write_to_buffer)(
+                back_buffer,
+                &Point { x: 0, y: status_row_y },
+                &format!(":{}", data.command_buffer.text),
+                None,
+                None,
+                None,
+            );
+            use std::io::Write;
+            let mut stream = global_data.clients[*client].stream.try_clone().unwrap();
+            write!(
+                stream,
+                "{}{}",
+                Show,
+                Goto(data.command_buffer.index as u16 + 2, status_row_y + 1)
+            );
+        }
     }
     // print!("{}{} {:?} {}", style::Invert, Goto(cols - 10, rows), global_data.mode, style::NoInvert);
     std::mem::forget(data);

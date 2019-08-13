@@ -4,7 +4,7 @@ use termion::{
     cursor::{Goto, Show}, terminal_size,
 };
 use types::{
-    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils, ClientIndex, SecondaryMap, BufferIndex,
+    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils, ClientIndex, SecondaryMap, BufferIndex, Rect,
 };
 
 
@@ -28,23 +28,25 @@ pub fn render(
     data_ptr: *mut c_void,
 ) {
     let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
-    let (cols, rows) = (100, 50);//terminal_size().unwrap();
-    let display = match global_data.clients[*client].mode {
-        Mode::Normal => "NORMAL",
-        Mode::Insert => "INSERT",
-        Mode::Command => "COMMAND",
-    };
-    (utils.write_to_buffer)(
-        back_buffer,
-        &Point {
-            x: cols - display.len() as u16 - 1,
-            y: rows - 1,
-        },
-        display,
-        None,
-        None,
-        None,
-    );
+    // let (cols, rows) = (100, 50);//terminal_size().unwrap();
+    if let Some(Rect { w, h }) = global_data.clients[*client].size {//(100, 50);//termion::terminal_size().unwrap();
+        let display = match global_data.clients[*client].mode {
+            Mode::Normal => "NORMAL",
+            Mode::Insert => "INSERT",
+            Mode::Command => "COMMAND",
+        };
+        (utils.write_to_buffer)(
+            back_buffer,
+            &Point {
+                x: w - display.len() as u16 - 1,
+                y: h - 1,
+            },
+            display,
+            None,
+            None,
+            None,
+        );
+    }
     use std::io::Write;
     let mut stream = global_data.clients[*client].stream.try_clone().unwrap();
     let cursor = get_or_insert_cursor(&mut data, &global_data, client);

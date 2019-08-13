@@ -92,16 +92,16 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer, out: impl
     writer.flush().unwrap();
 }
 
-pub fn create_back_buffer() -> BackBuffer {
+pub fn create_back_buffer(size: Rect) -> BackBuffer {
     // TODO: Figure out the client size
-    let (cols, rows) = (100, 50); //termion::terminal_size().unwrap();
-    let total_cell_count = cols * rows;
+    let Rect { w, h } = size;
+    let total_cell_count = w * h;
     let mut cells = Vec::with_capacity(total_cell_count as usize);
     for _ in 0..total_cell_count {
         cells.push(Cell::default());
     }
     BackBuffer {
         cells,
-        dim: Rect { w: cols, h: rows },
+        dim: size,
     }
 }

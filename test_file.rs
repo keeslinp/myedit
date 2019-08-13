@@ -1,5 +1,5 @@
-testuse std::any::Any; test
-testuse termion::{color, style};
+use std::any::Any; test
+use termion::{color, style};
 use types::{GlobalData, Msg};
 
 struct LocalData {}

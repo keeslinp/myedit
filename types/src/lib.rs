@@ -92,6 +92,9 @@ use serde::{Deserialize, Serialize};
 pub struct RemoteCommand(pub ClientIndex, pub Cmd);
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct InitializeClient(pub ClientIndex);
+
+#[derive(Debug, Deserialize, Serialize)]
 pub enum Cmd {
     MoveCursor(Direction),
     Quit,
@@ -105,6 +108,7 @@ pub enum Cmd {
     LoadFile(std::path::PathBuf),
     SearchFiles,
     CleanRender,
+    ResizeClient(Rect),
 }
 
 #[derive(Debug)]
@@ -113,6 +117,7 @@ pub struct Client {
     pub buffer: DefaultKey,
     pub mode: Mode,
     pub back_buffer: BackBuffer,
+    pub size: Option<Rect>, // We don't know right away
 }
 
 #[derive(Debug)]
@@ -129,7 +134,7 @@ pub struct Point {
     pub y: u16,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct Rect {
     pub w: u16,
     pub h: u16,

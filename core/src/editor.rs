@@ -15,7 +15,7 @@ use log4rs::config::{Appender, Config, Logger, Root};
 
 use types::{
     BackBuffer, Client, ClientIndex, Cmd, GlobalData, Mode, Msg, Point, RemoteCommand,
-    Utils,
+    Utils, InitializeClient, Rect,
 };
 
 use crate::back_buffer;
@@ -246,16 +246,17 @@ pub fn start(file: Option<std::path::PathBuf>) {
                 continue;
             },
             Msg::Cmd(_client, Cmd::Kill) => {
+                std::fs::remove_file("/tmp/myedit-core");
+                std::fs::remove_file("/tmp/myedit-stdin");
                 return;
             },
             Msg::Cmd(client, Cmd::CleanRender) => {
-                // TODO: Clean client
                 write!(global_data.clients[client].stream, "{}", termion::clear::All);
-                global_data.clients[client].back_buffer = back_buffer::create_back_buffer();
+                global_data.clients[client].back_buffer = back_buffer::create_back_buffer(global_data.clients[client].size.clone().unwrap_or(Rect::default()));
             }
             Msg::NewClient(ref stream) => {
                 let stream_clone = stream.try_clone().unwrap();
-                let client = Client {
+                let mut client = Client {
                     stream: stream.try_clone().unwrap(),
                     buffer: global_data
                         .buffers
@@ -264,9 +265,18 @@ pub fn start(file: Option<std::path::PathBuf>) {
                         .expect("Getting first buffer")
                         .0,
                     mode: Mode::Normal,
-                    back_buffer: back_buffer::create_back_buffer(),
+                    back_buffer: back_buffer::create_back_buffer(Rect::default()),
+                    size: None,
                 };
                 let index = global_data.client_keys.insert(());
+                // Tell the client who they are
+                info!("Information client {:?}", index);
+                let mut buf = Vec::new();
+                use serde::ser::Serialize;
+                InitializeClient(index).serialize(&mut rmp_serde::Serializer::new(&mut buf)).unwrap();
+                client.stream.write_all(&buf).expect("sending client index");
+                client.stream.flush().expect("flushing stream");
+                // Store the client
                 global_data.clients.insert(index, client);
                 handle_client_input(index, stream_clone, msg_sender.clone());
                 if let Some(ref file) = file {
@@ -274,7 +284,12 @@ pub fn start(file: Option<std::path::PathBuf>) {
                         .send(Msg::Cmd(index, Cmd::LoadFile(file.to_path_buf())))
                         .expect("loading initial file");
                 }
-            }
+                info!("Client {:?} initialized", index);
+            },
+            Msg::Cmd(client, Cmd::ResizeClient(ref new_dim)) => {
+                global_data.clients[client].size = Some(new_dim.clone());
+                msg_sender.send(Msg::Cmd(client, Cmd::CleanRender));
+            },
             _ => {} // handled in libs
         }
 
@@ -285,13 +300,15 @@ pub fn start(file: Option<std::path::PathBuf>) {
         if msg_sender.is_empty() {
             // Don't bother rendering if there is more in the pipeline
             for client in global_data.client_keys.keys() {
-                let mut new_back_buffer = back_buffer::create_back_buffer();
-                for (path, lib) in libraries.iter() {
-                    info!("rendering: {}", path);
-                    (*lib.render_fn)(&global_data, &client, &mut new_back_buffer, &utils, lib.data);
+                if let Some(size) = global_data.clients[client].size.clone() {
+                    let mut new_back_buffer = back_buffer::create_back_buffer(size);
+                    for (path, lib) in libraries.iter() {
+                        info!("rendering: {}", path);
+                        (*lib.render_fn)(&global_data, &client, &mut new_back_buffer, &utils, lib.data);
+                    }
+                    back_buffer::update_stdout(&global_data.clients[client].back_buffer, &new_back_buffer, global_data.clients[client].stream.try_clone().unwrap());
+                    global_data.clients[client].back_buffer = new_back_buffer;
                 }
-                back_buffer::update_stdout(&global_data.clients[client].back_buffer, &new_back_buffer, global_data.clients[client].stream.try_clone().unwrap());
-                global_data.clients[client].back_buffer = new_back_buffer;
             }
         }
     }
