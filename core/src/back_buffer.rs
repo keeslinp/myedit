@@ -1,8 +1,24 @@
 use std::io::Write;
+use log::warn;
 use types::{BackBuffer, Cell, Color, Point, Rect, Style};
 
 pub fn index_from_point(back_buffer: &BackBuffer, p: &Point) -> usize {
     (p.y * back_buffer.dim.w + p.x) as usize
+}
+
+fn apply_updates_to_cell(cell: &mut Cell, letter: Option<char>, style: Option<Style>, fg: Option<Color>, bg: Option<Color>) {
+    if letter.is_some() {
+        cell.value = letter;
+    }
+    if style.is_some() {
+        cell.style = style;
+    }
+    if fg.is_some() {
+        cell.fg = fg;
+    }
+    if bg.is_some() {
+        cell.bg = bg;
+    }
 }
 
 pub fn style_range(
@@ -15,16 +31,12 @@ pub fn style_range(
 ) {
     let index = index_from_point(back_buffer, start_point);
     for offset in 0..length {
+        if (offset + index > back_buffer.cells.len()) {
+            warn!("overflow");
+            break;
+        }
         let cell = &mut back_buffer.cells[index + offset];
-        if style.is_some() {
-            cell.style = style.clone();
-        }
-        if fg.is_some() {
-            cell.fg = fg.clone();
-        }
-        if bg.is_some() {
-            cell.bg = bg.clone();
-        }
+        apply_updates_to_cell(cell, None, style.clone(), fg.clone(), bg.clone());
     }
 }
 
@@ -47,12 +59,7 @@ pub fn write_to_buffer(
             p.y += 1;
         } else {
             let index = index_from_point(back_buffer, &p);
-            back_buffer.cells[index] = Cell {
-                value: Some(c),
-                style: style.clone(),
-                fg: fg.clone(),
-                bg: bg.clone(),
-            };
+            apply_updates_to_cell(&mut back_buffer.cells[index], Some(c), style.clone(), fg.clone(), bg.clone());
             p.x += 1;
         }
     }

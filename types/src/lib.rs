@@ -106,6 +106,7 @@ pub enum Cmd {
     RunCommand,
     WriteBuffer(std::path::PathBuf),
     LoadFile(std::path::PathBuf),
+    BufferLoaded,
     SearchFiles,
     CleanRender,
     ResizeClient(Rect),
@@ -143,7 +144,9 @@ pub struct Rect {
 pub struct Utils {
     pub write_to_buffer:
         fn(&mut BackBuffer, &Point, &str, Option<Style>, Option<Color>, Option<Color>),
-    pub info: fn(String),
-    pub debug: fn(String),
-    pub warn: fn(String),
+    pub style_range:
+        fn(&mut BackBuffer, &Point, usize, Option<Style>, Option<Color>, Option<Color>),
+    pub info: fn(&str),
+    pub debug: fn(&str),
+    pub warn: fn(&str),
 }

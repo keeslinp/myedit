@@ -15,12 +15,12 @@ fn load_buffer(global_data: &mut GlobalData, client: ClientIndex, file_path: std
 }
 
 #[no_mangle]
-pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils) {
+pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_cmd: &Box<Fn(ClientIndex, Cmd)>) {
     use Cmd::*;
     match msg {
         Msg::Cmd(ref client, cmd) => match cmd {
             LoadFile(file_path) => {
-                (utils.info)(format!("Loading buffer: {}", file_path.to_str().unwrap_or("invalid file")));
+                (utils.info)(&format!("Loading buffer: {}", file_path.to_str().unwrap_or("invalid file")));
                 let maybe_index = global_data
                     .buffers
                     .iter()
@@ -31,6 +31,7 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils) {
                 } else {
                     load_buffer(global_data, *client, file_path.clone());
                 }
+                send_cmd(*client, Cmd::BufferLoaded);
             }
             WriteBuffer(path) => {
                 let mut file = std::fs::File::create(path).expect("opening file");

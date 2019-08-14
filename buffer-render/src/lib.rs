@@ -3,16 +3,16 @@ use std::sync::mpsc::Sender;
 
 use types::{BackBuffer, ClientIndex, Color, GlobalData, Msg, Point, Utils, Rect};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Data {
     val: bool,
 }
 
-impl Default for Data {
-    fn default() -> Data {
-        Data { val: false }
-    }
-}
+// impl Default for Data {
+//     fn default() -> Data {
+//         Data { val: false }
+//     }
+// }
 
 // fn color_from_syntect_color(color: &syntect::highlighting::Color) -> Color {
 //     Color {

@@ -8,4 +8,5 @@ members = [
     "input",
     "cursor",
     "command",
+    "lang-rust",
 ]

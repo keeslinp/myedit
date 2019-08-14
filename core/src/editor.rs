@@ -305,6 +305,7 @@ pub fn start(file: Option<std::path::PathBuf>) {
                     for (path, lib) in libraries.iter() {
                         info!("rendering: {}", path);
                         (*lib.render_fn)(&global_data, &client, &mut new_back_buffer, &utils, lib.data);
+                        info!("rendered");
                     }
                     back_buffer::update_stdout(&global_data.clients[client].back_buffer, &new_back_buffer, global_data.clients[client].stream.try_clone().unwrap());
                     global_data.clients[client].back_buffer = new_back_buffer;
