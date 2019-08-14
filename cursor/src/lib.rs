@@ -2,7 +2,6 @@ use ropey::Rope;
 
 use termion::{
     cursor::{Goto, Show},
-    terminal_size,
 };
 use types::{
     BackBuffer, BufferIndex, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType,

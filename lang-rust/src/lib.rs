@@ -1,4 +1,4 @@
-use ra_ide_api::{Analysis, AnalysisChange, AnalysisHost, FileId, HighlightedRange, SourceRootId};
+use ra_ide_api::{AnalysisChange, AnalysisHost, FileId, HighlightedRange, SourceRootId};
 use types::{
     BackBuffer, BufferIndex, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType,
     KeyData, Mode, Msg, Point, Rect, SecondaryMap, Utils,
@@ -39,7 +39,7 @@ pub fn render(
     utils: &Utils,
     data_ptr: *mut c_void,
 ) {
-    let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
+    let data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     let analysis = data.analysisHost.analysis();
     let client = &global_data.clients[*client_index];
     let file_id = file_id_from_buffer_index(client.buffer);
@@ -76,8 +76,8 @@ pub fn render(
 pub fn update(
     global_data: &mut GlobalData,
     msg: &Msg,
-    utils: &Utils,
-    send_cmd: &Box<Fn(ClientIndex, Cmd)>,
+    _utils: &Utils,
+    _send_cmd: &Box<Fn(ClientIndex, Cmd)>,
     data_ptr: *mut c_void,
 ) {
     let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };

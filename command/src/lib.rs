@@ -3,7 +3,6 @@ use std::ffi::c_void;
 
 use termion::{
     cursor::{Goto, Show},
-    terminal_size,
 };
 use types::{
     BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, Mode, Msg, Point, Rect,
@@ -31,7 +30,7 @@ pub fn render(
 ) {
     let mode = &global_data.clients[*client].mode;
     let data = unsafe { Box::from_raw(data_ptr as *mut Data) };
-    if let Some(Rect { w, h }) = global_data.clients[*client].size {
+    if let Some(Rect { w: _, h }) = global_data.clients[*client].size {
         let status_row_y = h - 1;
         if *mode == Mode::Command {
             (utils.write_to_buffer)(

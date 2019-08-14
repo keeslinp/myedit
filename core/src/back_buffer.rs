@@ -37,7 +37,7 @@ pub fn style_range(
 ) {
     let index = index_from_point(back_buffer, start_point);
     for offset in 0..length {
-        if (offset + index > back_buffer.cells.len()) {
+        if offset + index > back_buffer.cells.len() {
             warn!("overflow");
             break;
         }
@@ -79,7 +79,7 @@ pub fn write_to_buffer(
 
 pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer, out: impl Write) {
     use termion::{
-        cursor::{Goto, HideCursor, Restore, Save, Show},
+        cursor::{Goto, Restore, Save, Show},
         style::Reset,
     };
     let mut writer = out; //HideCursor::from(out);

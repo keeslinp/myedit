@@ -1,4 +1,4 @@
-use crossbeam_channel::{bounded, unbounded, Sender};
+use crossbeam_channel::{bounded, Sender};
 use notify::Watcher;
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -87,7 +87,7 @@ pub fn get_client_index(stream: &UnixStream) -> ClientIndex {
 }
 
 pub fn start(file: Option<std::path::PathBuf>) {
-    if (launch_core(file)) {
+    if launch_core(file) {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
     let stream = setup_external_socket();

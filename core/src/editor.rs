@@ -2,19 +2,19 @@ use crossbeam_channel::{unbounded, Sender};
 use libloading::os::unix::Symbol;
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
 
-use log::{debug, info, LevelFilter};
+use log::{info, LevelFilter};
 use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Config, Logger, Root};
+use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use std::collections::HashMap;
 use std::default::Default;
 use std::ffi::c_void;
-use std::io::{Read, Write};
+use std::io::{Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::{fs, path, time};
 
 use types::{
-    BackBuffer, Client, ClientIndex, Cmd, GlobalData, InitializeClient, Mode, Msg, Point, Rect,
+    BackBuffer, Client, ClientIndex, Cmd, GlobalData, InitializeClient, Mode, Msg, Rect,
     RemoteCommand, Utils,
 };
 
@@ -131,7 +131,7 @@ fn setup_external_socket(msg_sender: Sender<Msg>) {
                         .send(Msg::Cmd(client, cmd))
                         .expect("sending command in message");
                 }
-                Err(err) => {
+                Err(_err) => {
                     // println!("Error: {}", err);
                     break;
                 }

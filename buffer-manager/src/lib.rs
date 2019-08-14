@@ -1,7 +1,7 @@
 use ropey::Rope;
 use types::{Buffer, ClientIndex, Cmd, GlobalData, KeyData, Msg, Utils};
 #[no_mangle]
-pub fn render(global_data: &GlobalData) {}
+pub fn render(_global_data: &GlobalData) {}
 
 fn load_buffer(global_data: &mut GlobalData, client: ClientIndex, file_path: std::path::PathBuf) {
     let buffer_key = global_data.buffer_keys.insert(());
@@ -45,7 +45,7 @@ pub fn update(
                 send_cmd(*client, Cmd::BufferLoaded);
             }
             WriteBuffer(path) => {
-                let mut file = std::fs::File::create(path).expect("opening file");
+                let file = std::fs::File::create(path).expect("opening file");
                 global_data.buffers[global_data.clients[*client].buffer]
                     .rope
                     .write_to(file)
