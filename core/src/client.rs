@@ -1,13 +1,12 @@
-use crossbeam_channel::{unbounded, bounded, Sender};
-use notify::{Watcher};
+use crossbeam_channel::{bounded, unbounded, Sender};
+use notify::Watcher;
 use std::io::{Read, Write};
-use std::os::unix::net::{UnixStream};
+use std::os::unix::net::UnixStream;
 use termion::raw::IntoRawMode;
-use types::{ClientIndex, InitializeClient, Cmd, Rect};
+use types::{ClientIndex, Cmd, InitializeClient, Rect};
 
 fn setup_stdin(mut stream: UnixStream) {
     std::thread::spawn(move || {
-        
         let stdin = std::io::stdin();
         let _stdout = std::io::stdout().into_raw_mode().unwrap(); // Need to turn it into raw mode
         let lock = stdin.lock();
@@ -40,7 +39,7 @@ fn send_size_to_editor(client: ClientIndex) {
     use crate::send_cmd::send_over_socket;
     let (w, h) = termion::terminal_size().expect("getting terminal size");
     let command_stream = setup_command_socket();
-    send_over_socket(&command_stream, client, Cmd::ResizeClient(Rect {w, h }));
+    send_over_socket(&command_stream, client, Cmd::ResizeClient(Rect { w, h }));
 }
 
 fn setup_signals_handler(client: ClientIndex) {
@@ -60,7 +59,14 @@ fn launch_core(file: Option<std::path::PathBuf>) -> bool {
         Command::new("cargo")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .args(&["run", "--release", &file.and_then(|val| val.to_str().map(|s| s.to_owned())).unwrap_or(String::new()), "--core"])
+            .args(&[
+                "run",
+                "--release",
+                &file
+                    .and_then(|val| val.to_str().map(|s| s.to_owned()))
+                    .unwrap_or(String::new()),
+                "--core",
+            ])
             .spawn();
         true
     } else {
@@ -74,7 +80,8 @@ fn setup_command_socket() -> UnixStream {
 
 pub fn get_client_index(stream: &UnixStream) -> ClientIndex {
     println!("About to read");
-    let InitializeClient(client_index) = rmp_serde::from_read(stream).expect("parsing client initialize");
+    let InitializeClient(client_index) =
+        rmp_serde::from_read(stream).expect("parsing client initialize");
     println!("got it: {:?}", client_index);
     client_index
 }

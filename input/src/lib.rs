@@ -1,6 +1,9 @@
 use std::ffi::c_void;
 use termion::event::{Event, Key};
-use types::{BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Utils, ClientIndex};
+use types::{
+    BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg,
+    Utils,
+};
 
 #[derive(Debug, Default)]
 struct Data {
@@ -11,7 +14,12 @@ struct Data {
 pub fn render(_global_data: &GlobalData, _back_buffer: &mut BackBuffer, _utils: &Utils) {}
 
 #[no_mangle]
-pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd: &Box<Fn(ClientIndex, Cmd)>) {
+pub fn update(
+    global_data: &mut GlobalData,
+    msg: &Msg,
+    _utils: &Utils,
+    send_cmd: &Box<Fn(ClientIndex, Cmd)>,
+) {
     match msg {
         Msg::StdinEvent(client, evt) => {
             // Same for all modes
@@ -60,7 +68,9 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd:
                 Mode::Insert => match evt {
                     Event::Key(k) => match k {
                         Key::Esc => send_cmd(*client, Cmd::ChangeMode(Mode::Normal)),
-                        Key::Backspace => send_cmd(*client, Cmd::DeleteChar(DeleteDirection::Before)),
+                        Key::Backspace => {
+                            send_cmd(*client, Cmd::DeleteChar(DeleteDirection::Before))
+                        }
                         Key::Char(c) => send_cmd(*client, Cmd::InsertChar(*c)),
                         _ => {}
                     },
@@ -70,7 +80,9 @@ pub fn update(global_data: &mut GlobalData, msg: &Msg, _utils: &Utils, send_cmd:
                     Event::Key(key) => match key {
                         Key::Char('\n') => send_cmd(*client, Cmd::RunCommand),
                         Key::Char(c) => send_cmd(*client, Cmd::InsertChar(*c)),
-                        Key::Backspace => send_cmd(*client, Cmd::DeleteChar(DeleteDirection::Before)),
+                        Key::Backspace => {
+                            send_cmd(*client, Cmd::DeleteChar(DeleteDirection::Before))
+                        }
                         Key::Esc => send_cmd(*client, Cmd::ChangeMode(Mode::Normal)),
                         _ => {}
                     },

@@ -1,17 +1,27 @@
 use ropey::Rope;
 
 use termion::{
-    cursor::{Goto, Show}, terminal_size,
+    cursor::{Goto, Show},
+    terminal_size,
 };
 use types::{
-    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils, ClientIndex, SecondaryMap, BufferIndex, Rect,
+    BackBuffer, BufferIndex, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType,
+    Mode, Msg, Point, Rect, SecondaryMap, Utils,
 };
 
-
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Cursor {
     pub position: Point,
     pub stored_x: u16,
+}
+
+impl Default for Cursor {
+    fn default() -> Cursor {
+        Cursor {
+            position: Point { x: 1, y: 0 },
+            stored_x: 0,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -29,7 +39,8 @@ pub fn render(
 ) {
     let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     // let (cols, rows) = (100, 50);//terminal_size().unwrap();
-    if let Some(Rect { w, h }) = global_data.clients[*client].size {//(100, 50);//termion::terminal_size().unwrap();
+    if let Some(Rect { w, h }) = global_data.clients[*client].size {
+        //(100, 50);//termion::terminal_size().unwrap();
         let display = match global_data.clients[*client].mode {
             Mode::Normal => "NORMAL",
             Mode::Insert => "INSERT",
@@ -58,8 +69,7 @@ pub fn render(
             Show,
             Goto(
                 cursor.position.x + 4, // +4 for line numbers
-                cursor.position.y + 1
-                    - global_data.buffers[current_buffer].start_line as u16
+                cursor.position.y + 1 - global_data.buffers[current_buffer].start_line as u16
             )
         );
     }
@@ -78,10 +88,15 @@ fn get_new_x_position(cursor: &Cursor, rope: &Rope) -> u16 {
     )
 }
 
-fn get_or_insert_cursor<'a>(data: &'a mut Box<State>, global_data: &GlobalData, client: &ClientIndex) -> &'a mut Cursor {
+fn get_or_insert_cursor<'a>(
+    data: &'a mut Box<State>,
+    global_data: &GlobalData,
+    client: &ClientIndex,
+) -> &'a mut Cursor {
     let buffer_index = global_data.clients[*client].buffer;
     if !data.cursors.contains_key(buffer_index) {
-        data.cursors.insert(buffer_index, std::default::Default::default());
+        data.cursors
+            .insert(buffer_index, std::default::Default::default());
     }
     &mut data.cursors[buffer_index]
 }
@@ -122,29 +137,30 @@ pub fn update(
                                     if cursor.position.y > 0 {
                                         cursor.position.y -= 1;
                                     }
-                                    if (cursor.position.y as usize)
-                                        < current_buffer.start_line
-                                    {
+                                    if (cursor.position.y as usize) < current_buffer.start_line {
                                         current_buffer.start_line -= 1;
                                     }
                                 }
                                 Down => {
-                                    if (cursor.position.y as usize) + 1
-                                        < rope.len_lines()
-                                    {
+                                    if (cursor.position.y as usize) + 1 < rope.len_lines() {
                                         cursor.position.y += 1;
                                     }
-                                    let (_, rows) = (100, 50); //terminal_size().expect("getting terminal size");
                                     if (cursor.position.y as usize)
-                                        >= current_buffer.start_line + (rows as usize - 1)
+                                        >= current_buffer.start_line
+                                            + (global_data.clients[*client]
+                                                .size
+                                                .as_ref()
+                                                .map(|s| s.h)
+                                                .unwrap_or(0)
+                                                as usize
+                                                - 1)
                                     {
                                         current_buffer.start_line += 1;
                                     }
                                 }
                             }
                             // Make sure we don't venture to nowhere
-                            cursor.position.x =
-                                get_new_x_position(&cursor, &rope);
+                            cursor.position.x = get_new_x_position(&cursor, &rope);
                         }
                     }
                 }
@@ -154,8 +170,7 @@ pub fn update(
                 InsertChar(c) => match global_data.clients[*client].mode {
                     Mode::Command => {}
                     _ => {
-                        let index =
-                            get_ropey_index_from_cursor(&cursor.position, &rope);
+                        let index = get_ropey_index_from_cursor(&cursor.position, &rope);
                         rope.insert_char(index, *c);
                         if *c == '\n' {
                             send_cmd(*client, MoveCursor(Direction::Down));
@@ -167,8 +182,7 @@ pub fn update(
                 DeleteChar(dir) => match global_data.clients[*client].mode {
                     Mode::Command => {}
                     _ => {
-                        let index =
-                            get_ropey_index_from_cursor(&cursor.position, &rope);
+                        let index = get_ropey_index_from_cursor(&cursor.position, &rope);
                         match dir {
                             DeleteDirection::After => {
                                 rope.remove(index..index + 1);
@@ -187,8 +201,7 @@ pub fn update(
                     match jump_type {
                         EndOfLine => {
                             let mut position = &mut cursor.position;
-                            position.x = global_data.buffers
-                                [global_data.clients[*client].buffer]
+                            position.x = global_data.buffers[global_data.clients[*client].buffer]
                                 .rope
                                 .line(position.y as usize)
                                 .len_chars() as u16
@@ -198,7 +211,7 @@ pub fn update(
                         }
                         _ => {}
                     }
-                },
+                }
                 _ => {}
             }
         }

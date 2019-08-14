@@ -2,11 +2,12 @@ use ropey::Rope;
 use std::ffi::c_void;
 
 use termion::{
-    cursor::{Goto, Show}, terminal_size,
+    cursor::{Goto, Show},
+    terminal_size,
 };
 use types::{
-    BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, Mode, Msg,
-    Point, Utils, Rect
+    BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, Mode, Msg, Point, Rect,
+    Utils,
 };
 
 #[derive(Debug, Default)]
@@ -35,7 +36,10 @@ pub fn render(
         if *mode == Mode::Command {
             (utils.write_to_buffer)(
                 back_buffer,
-                &Point { x: 0, y: status_row_y },
+                &Point {
+                    x: 0,
+                    y: status_row_y,
+                },
                 &format!(":{}", data.command_buffer.text),
                 None,
                 None,
@@ -105,13 +109,16 @@ pub fn update(
                     }
                     Some("q") => send_cmd(*client, Cmd::Quit),
                     Some("wq") => {
-                        send_cmd(*client, Cmd::WriteBuffer(
-                            global_data.buffers[global_data.clients[*client].buffer]
-                                .source
-                                .clone(),
-                        ));
+                        send_cmd(
+                            *client,
+                            Cmd::WriteBuffer(
+                                global_data.buffers[global_data.clients[*client].buffer]
+                                    .source
+                                    .clone(),
+                            ),
+                        );
                         send_cmd(*client, Cmd::Quit);
-                    },
+                    }
                     Some("kill") => send_cmd(*client, Cmd::Kill),
                     _ => {
                         // Unknown command

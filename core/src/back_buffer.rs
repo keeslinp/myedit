@@ -1,12 +1,18 @@
-use std::io::Write;
 use log::warn;
+use std::io::Write;
 use types::{BackBuffer, Cell, Color, Point, Rect, Style};
 
 pub fn index_from_point(back_buffer: &BackBuffer, p: &Point) -> usize {
     (p.y * back_buffer.dim.w + p.x) as usize
 }
 
-fn apply_updates_to_cell(cell: &mut Cell, letter: Option<char>, style: Option<Style>, fg: Option<Color>, bg: Option<Color>) {
+fn apply_updates_to_cell(
+    cell: &mut Cell,
+    letter: Option<char>,
+    style: Option<Style>,
+    fg: Option<Color>,
+    bg: Option<Color>,
+) {
     if letter.is_some() {
         cell.value = letter;
     }
@@ -59,7 +65,13 @@ pub fn write_to_buffer(
             p.y += 1;
         } else {
             let index = index_from_point(back_buffer, &p);
-            apply_updates_to_cell(&mut back_buffer.cells[index], Some(c), style.clone(), fg.clone(), bg.clone());
+            apply_updates_to_cell(
+                &mut back_buffer.cells[index],
+                Some(c),
+                style.clone(),
+                fg.clone(),
+                bg.clone(),
+            );
             p.x += 1;
         }
     }
@@ -70,7 +82,7 @@ pub fn update_stdout(old_buffer: &BackBuffer, new_buffer: &BackBuffer, out: impl
         cursor::{Goto, HideCursor, Restore, Save, Show},
         style::Reset,
     };
-    let mut writer = out;//HideCursor::from(out);
+    let mut writer = out; //HideCursor::from(out);
     let mut x = 1;
     let mut y = 1;
     write!(writer, "{}", Save).unwrap();
@@ -107,8 +119,5 @@ pub fn create_back_buffer(size: Rect) -> BackBuffer {
     for _ in 0..total_cell_count {
         cells.push(Cell::default());
     }
-    BackBuffer {
-        cells,
-        dim: size,
-    }
+    BackBuffer { cells, dim: size }
 }

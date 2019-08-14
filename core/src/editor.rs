@@ -2,20 +2,20 @@ use crossbeam_channel::{unbounded, Sender};
 use libloading::os::unix::Symbol;
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
 
+use log::{debug, info, LevelFilter};
+use log4rs::append::file::FileAppender;
+use log4rs::config::{Appender, Config, Logger, Root};
+use log4rs::encode::pattern::PatternEncoder;
 use std::collections::HashMap;
 use std::default::Default;
 use std::ffi::c_void;
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::{fs, path, time};
-use log::{debug, info, LevelFilter};
-use log4rs::append::file::FileAppender;
-use log4rs::encode::pattern::PatternEncoder;
-use log4rs::config::{Appender, Config, Logger, Root};
 
 use types::{
-    BackBuffer, Client, ClientIndex, Cmd, GlobalData, Mode, Msg, Point, RemoteCommand,
-    Utils, InitializeClient, Rect,
+    BackBuffer, Client, ClientIndex, Cmd, GlobalData, InitializeClient, Mode, Msg, Point, Rect,
+    RemoteCommand, Utils,
 };
 
 use crate::back_buffer;
@@ -184,12 +184,12 @@ fn setup_logging() {
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
         .append(false)
-        .build("output.log").expect("logging setup");
+        .build("output.log")
+        .expect("logging setup");
     let config = Config::builder()
         .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(Root::builder()
-                   .appender("logfile")
-                   .build(LevelFilter::Info)).unwrap();
+        .build(Root::builder().appender("logfile").build(LevelFilter::Info))
+        .unwrap();
     log4rs::init_config(config).unwrap();
     info!("Hello World");
 }
@@ -234,7 +234,7 @@ pub fn start(file: Option<std::path::PathBuf>) {
                     Event::Key(Key::Ctrl('c')) => return,
                     _ => {}
                 }
-            },
+            }
             Msg::Cmd(client_index, Cmd::Quit) => {
                 // TODO: don't crash
                 global_data.clients[client_index]
@@ -244,15 +244,24 @@ pub fn start(file: Option<std::path::PathBuf>) {
                 global_data.client_keys.remove(client_index);
                 // Don't want to have other libs try to run this event
                 continue;
-            },
+            }
             Msg::Cmd(_client, Cmd::Kill) => {
                 std::fs::remove_file("/tmp/myedit-core");
                 std::fs::remove_file("/tmp/myedit-stdin");
                 return;
-            },
+            }
             Msg::Cmd(client, Cmd::CleanRender) => {
-                write!(global_data.clients[client].stream, "{}", termion::clear::All);
-                global_data.clients[client].back_buffer = back_buffer::create_back_buffer(global_data.clients[client].size.clone().unwrap_or(Rect::default()));
+                write!(
+                    global_data.clients[client].stream,
+                    "{}",
+                    termion::clear::All
+                );
+                global_data.clients[client].back_buffer = back_buffer::create_back_buffer(
+                    global_data.clients[client]
+                        .size
+                        .clone()
+                        .unwrap_or(Rect::default()),
+                );
             }
             Msg::NewClient(ref stream) => {
                 let stream_clone = stream.try_clone().unwrap();
@@ -273,7 +282,9 @@ pub fn start(file: Option<std::path::PathBuf>) {
                 info!("Information client {:?}", index);
                 let mut buf = Vec::new();
                 use serde::ser::Serialize;
-                InitializeClient(index).serialize(&mut rmp_serde::Serializer::new(&mut buf)).unwrap();
+                InitializeClient(index)
+                    .serialize(&mut rmp_serde::Serializer::new(&mut buf))
+                    .unwrap();
                 client.stream.write_all(&buf).expect("sending client index");
                 client.stream.flush().expect("flushing stream");
                 // Store the client
@@ -285,11 +296,11 @@ pub fn start(file: Option<std::path::PathBuf>) {
                         .expect("loading initial file");
                 }
                 info!("Client {:?} initialized", index);
-            },
+            }
             Msg::Cmd(client, Cmd::ResizeClient(ref new_dim)) => {
                 global_data.clients[client].size = Some(new_dim.clone());
                 msg_sender.send(Msg::Cmd(client, Cmd::CleanRender));
-            },
+            }
             _ => {} // handled in libs
         }
 
@@ -304,10 +315,20 @@ pub fn start(file: Option<std::path::PathBuf>) {
                     let mut new_back_buffer = back_buffer::create_back_buffer(size);
                     for (path, lib) in libraries.iter() {
                         info!("rendering: {}", path);
-                        (*lib.render_fn)(&global_data, &client, &mut new_back_buffer, &utils, lib.data);
+                        (*lib.render_fn)(
+                            &global_data,
+                            &client,
+                            &mut new_back_buffer,
+                            &utils,
+                            lib.data,
+                        );
                         info!("rendered");
                     }
-                    back_buffer::update_stdout(&global_data.clients[client].back_buffer, &new_back_buffer, global_data.clients[client].stream.try_clone().unwrap());
+                    back_buffer::update_stdout(
+                        &global_data.clients[client].back_buffer,
+                        &new_back_buffer,
+                        global_data.clients[client].stream.try_clone().unwrap(),
+                    );
                     global_data.clients[client].back_buffer = new_back_buffer;
                 }
             }

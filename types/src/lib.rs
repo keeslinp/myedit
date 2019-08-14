@@ -1,6 +1,6 @@
 use notify::DebouncedEvent;
 use ropey::Rope;
-pub use slotmap::{DefaultKey, SecondaryMap, SlotMap, KeyData};
+pub use slotmap::{DefaultKey, KeyData, SecondaryMap, SlotMap};
 use std::os::unix::net::UnixStream;
 
 use termion::event::Event;
@@ -83,7 +83,6 @@ pub enum JumpType {
     EndOfWord,
     MatchingBrace,
 }
-
 
 use serde::{Deserialize, Serialize};
 // use serde_derive::{Deserialize, Serialize};

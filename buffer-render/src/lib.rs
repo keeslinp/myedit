@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::sync::mpsc::Sender;
 
-use types::{BackBuffer, ClientIndex, Color, GlobalData, Msg, Point, Utils, Rect};
+use types::{BackBuffer, ClientIndex, Color, GlobalData, Msg, Point, Rect, Utils};
 
 #[derive(Debug, Default)]
 struct Data {
@@ -32,7 +32,8 @@ pub fn render(
 ) {
     let data: Box<Data> = unsafe { Box::from_raw(data_ptr as *mut Data) };
     let buffer = &global_data.buffers[global_data.clients[*client].buffer];
-    if let Some(Rect { w, h }) = global_data.clients[*client].size {//(100, 50);//termion::terminal_size().unwrap();
+    if let Some(Rect { w, h }) = global_data.clients[*client].size {
+        //(100, 50);//termion::terminal_size().unwrap();
         for (index, (line_number, line)) in buffer
             .rope
             .lines()

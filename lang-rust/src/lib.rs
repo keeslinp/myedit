@@ -1,7 +1,8 @@
+use ra_ide_api::{Analysis, AnalysisChange, AnalysisHost, FileId, HighlightedRange, SourceRootId};
 use types::{
-    BackBuffer, Cmd, DeleteDirection, Direction, GlobalData, JumpType, Mode, Msg, Point, Utils, ClientIndex, SecondaryMap, BufferIndex, Rect,
+    BackBuffer, BufferIndex, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType,
+    KeyData, Mode, Msg, Point, Rect, SecondaryMap, Utils,
 };
-use ra_ide_api::{AnalysisHost, AnalysisChange, Analysis, FileId, HighlightedRange};
 mod colors;
 use colors::get_color_from_tag;
 
@@ -11,9 +12,23 @@ pub struct Cursor {
     pub stored_x: u16,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct State {
-    analysis: Option<(Analysis, FileId)>,
+    analysisHost: AnalysisHost,
+}
+
+impl Default for State {
+    fn default() -> State {
+        let mut analysisHost = AnalysisHost::default();
+        let mut add_root = AnalysisChange::new();
+        add_root.add_root(SourceRootId(0), true);
+        analysisHost.apply_change(add_root);
+        State { analysisHost }
+    }
+}
+
+fn file_id_from_buffer_index(buffer_index: BufferIndex) -> FileId {
+    FileId(KeyData::from(buffer_index).as_ffi() as u32)
 }
 
 #[no_mangle]
@@ -25,34 +40,34 @@ pub fn render(
     data_ptr: *mut c_void,
 ) {
     let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
-    if let Some((ref analysis, file_id)) = data.analysis {
-        if let Ok(highlighted_ranges) = analysis.highlight(file_id) {
-            for HighlightedRange { range, tag, .. } in highlighted_ranges {
-                (utils.info)(&format!("{:?} -> {}", range, tag));
-                let client = &global_data.clients[*client_index];
-                let buffer = &global_data.buffers[client.buffer];
-                let start_char_index = range.start().to_usize();
-                let line_index = buffer.rope.char_to_line(start_char_index);
-                if line_index < buffer.start_line {
-                    continue;
-                }
-                if line_index > buffer.start_line + client.size.as_ref().map(|s| s.h).unwrap_or(0) as usize {
-                    break;
-                }
-                let fg_color = get_color_from_tag(tag);
-                if fg_color.is_some() {
-                    let line_start_index = buffer.rope.line_to_char(line_index);
-                    let start_point = Point {
-                        x: (start_char_index - line_start_index + 4) as u16,
-                        y: (line_index - buffer.start_line) as u16,
-                    };
-                    let length = range.len().to_usize();
-                    (utils.style_range)(back_buffer, &start_point, length, None, fg_color, None);
-                }
+    let analysis = data.analysisHost.analysis();
+    let client = &global_data.clients[*client_index];
+    let file_id = file_id_from_buffer_index(client.buffer);
+    if let Ok(highlighted_ranges) = analysis.highlight(file_id) {
+        for HighlightedRange { range, tag, .. } in highlighted_ranges {
+            // (utils.info)(&format!("{:?} -> {}", range, tag));
+            let start_char_index = range.start().to_usize();
+            let buffer = &global_data.buffers[client.buffer];
+            let line_index = buffer.rope.char_to_line(start_char_index);
+            if line_index < buffer.start_line {
+                continue;
+            }
+            if line_index
+                > buffer.start_line + client.size.as_ref().map(|s| s.h).unwrap_or(0) as usize
+            {
+                break;
+            }
+            let fg_color = get_color_from_tag(tag);
+            if fg_color.is_some() {
+                let line_start_index = buffer.rope.line_to_char(line_index);
+                let start_point = Point {
+                    x: (start_char_index - line_start_index + 4) as u16,
+                    y: (line_index - buffer.start_line) as u16,
+                };
+                let length = range.len().to_usize();
+                (utils.style_range)(back_buffer, &start_point, length, None, fg_color, None);
             }
         }
-    } else {
-        (utils.info)("No analysis set");
     }
     std::mem::forget(data);
 }
@@ -70,14 +85,35 @@ pub fn update(
     match msg {
         Msg::Cmd(client_index, cmd) => match cmd {
             BufferLoaded => {
-                let buffer = &mut global_data.buffers[global_data.clients[*client_index].buffer];
-                let string_rope = String::from(buffer.rope.clone());
-                (utils.info)(&string_rope);
-                data.analysis = Some(Analysis::from_single_file(string_rope));
-                (utils.info)("Analysis loaded");
-            },
-            _ => {},
-        }
+                let buffer_index = global_data.clients[*client_index].buffer;
+                let buffer = &mut global_data.buffers[buffer_index];
+                use relative_path::RelativePathBuf;
+                data.analysisHost.apply_change({
+                    let mut change = AnalysisChange::new();
+                    change.add_file(
+                        SourceRootId(0),
+                        file_id_from_buffer_index(buffer_index),
+                        RelativePathBuf::from_path(buffer.source.as_path())
+                            .expect("building relative path"),
+                        std::sync::Arc::new(String::from(buffer.rope.clone())),
+                    );
+                    change
+                });
+            }
+            InsertChar(_) | DeleteChar(_) => {
+                let buffer_index = global_data.clients[*client_index].buffer;
+                let buffer = &mut global_data.buffers[buffer_index];
+                data.analysisHost.apply_change({
+                    let mut change = AnalysisChange::new();
+                    change.change_file(
+                        file_id_from_buffer_index(buffer_index),
+                        std::sync::Arc::new(String::from(buffer.rope.clone())),
+                    );
+                    change
+                });
+            }
+            _ => {}
+        },
         _ => {}
     };
     std::mem::forget(data);

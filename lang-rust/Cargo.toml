@@ -13,3 +13,4 @@ crate-type = ["dylib"]
 [dependencies]
 types = { path = "../types" }
 ra_ide_api = { git = "https://github.com/rust-analyzer/rust-analyzer" }
+relative-path = "0.4.0"

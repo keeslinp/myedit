@@ -1,26 +1,37 @@
 use ropey::Rope;
-use types::{Buffer, Cmd, GlobalData, Msg, ClientIndex, KeyData, Utils};
+use types::{Buffer, ClientIndex, Cmd, GlobalData, KeyData, Msg, Utils};
 #[no_mangle]
 pub fn render(global_data: &GlobalData) {}
 
 fn load_buffer(global_data: &mut GlobalData, client: ClientIndex, file_path: std::path::PathBuf) {
     let buffer_key = global_data.buffer_keys.insert(());
-    global_data.buffers.insert(buffer_key, Buffer {
-        rope: Rope::from_reader(std::fs::File::open(&file_path).expect("loading file"))
-            .expect("building rope"),
-        source: file_path,
-        start_line: 0,
-    });
+    global_data.buffers.insert(
+        buffer_key,
+        Buffer {
+            rope: Rope::from_reader(std::fs::File::open(&file_path).expect("loading file"))
+                .expect("building rope"),
+            source: file_path,
+            start_line: 0,
+        },
+    );
     global_data.clients[client].buffer = buffer_key;
 }
 
 #[no_mangle]
-pub fn update(global_data: &mut GlobalData, msg: &Msg, utils: &Utils, send_cmd: &Box<Fn(ClientIndex, Cmd)>) {
+pub fn update(
+    global_data: &mut GlobalData,
+    msg: &Msg,
+    utils: &Utils,
+    send_cmd: &Box<Fn(ClientIndex, Cmd)>,
+) {
     use Cmd::*;
     match msg {
         Msg::Cmd(ref client, cmd) => match cmd {
             LoadFile(file_path) => {
-                (utils.info)(&format!("Loading buffer: {}", file_path.to_str().unwrap_or("invalid file")));
+                (utils.info)(&format!(
+                    "Loading buffer: {}",
+                    file_path.to_str().unwrap_or("invalid file")
+                ));
                 let maybe_index = global_data
                     .buffers
                     .iter()
