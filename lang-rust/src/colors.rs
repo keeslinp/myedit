@@ -1,3 +1,4 @@
+use ra_ide_api::Severity;
 use types::Color;
 pub fn get_color_from_tag(tag: &str) -> Option<Color> {
     match tag {
@@ -37,5 +38,20 @@ pub fn get_color_from_tag(tag: &str) -> Option<Color> {
             b: 174,
         }),
         _ => None,
+    }
+}
+
+pub fn get_color_from_severity(severity: Severity) -> Color {
+    match severity {
+        Severity::Error => Color {
+            r: 255,
+            g: 0,
+            b: 0,
+        },
+        Severity::WeakWarning => Color {
+            r: 255,
+            g: 255,
+            b: 0,
+        }
     }
 }

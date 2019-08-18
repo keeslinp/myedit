@@ -106,6 +106,7 @@ pub enum Cmd {
     WriteBuffer(std::path::PathBuf),
     LoadFile(std::path::PathBuf),
     BufferLoaded,
+    BufferModified,
     SearchFiles,
     CleanRender,
     ResizeClient(Rect),

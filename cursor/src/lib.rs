@@ -176,6 +176,7 @@ pub fn update(
                         } else {
                             send_cmd(*client, MoveCursor(Direction::Right));
                         }
+                        send_cmd(*client, BufferModified);
                     }
                 },
                 DeleteChar(dir) => match global_data.clients[*client].mode {
@@ -193,6 +194,7 @@ pub fn update(
                                 }
                             }
                         }
+                        send_cmd(*client, BufferModified);
                     }
                 },
                 Jump(jump_type) => {
