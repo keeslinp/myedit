@@ -41,6 +41,10 @@ pub fn update(
                         'h' => send_cmd(*client, Cmd::MoveCursor(Direction::Left)),
                         'j' => send_cmd(*client, Cmd::MoveCursor(Direction::Down)),
                         'k' => send_cmd(*client, Cmd::MoveCursor(Direction::Up)),
+                        'L' => send_cmd(*client, Cmd::MoveSelection(Direction::Right)),
+                        'H' => send_cmd(*client, Cmd::MoveSelection(Direction::Left)),
+                        'J' => send_cmd(*client, Cmd::MoveSelection(Direction::Down)),
+                        'K' => send_cmd(*client, Cmd::MoveSelection(Direction::Up)),
                         'd' => send_cmd(*client, Cmd::DeleteChar(DeleteDirection::After)),
                         'a' => {
                             send_cmd(*client, Cmd::MoveCursor(Direction::Right));

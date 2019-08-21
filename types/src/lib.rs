@@ -95,6 +95,7 @@ pub struct InitializeClient(pub ClientIndex);
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum Cmd {
+    MoveSelection(Direction),
     MoveCursor(Direction),
     Quit,
     Kill,
@@ -129,10 +130,10 @@ pub enum Msg {
     NewClient(UnixStream),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, PartialOrd)]
 pub struct Point {
-    pub x: u16,
     pub y: u16,
+    pub x: u16,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, Clone)]

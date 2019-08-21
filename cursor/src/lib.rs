@@ -2,22 +2,43 @@ use ropey::Rope;
 
 use termion::cursor::{Goto, Show};
 use types::{
-    BackBuffer, BufferIndex, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType,
-    Mode, Msg, Point, Rect, SecondaryMap, Utils,
+    BackBuffer, BufferIndex, Client, ClientIndex, Cmd, Color, DeleteDirection, Direction,
+    GlobalData, JumpType, Mode, Msg, Point, Rect, SecondaryMap, Utils,
 };
 
 #[derive(Debug)]
-pub struct Cursor {
-    pub position: Point,
-    pub stored_x: u16,
+struct Cursor {
+    position: Point,
+    stored_x: u16,
+    selection_edge: Point,
 }
 
 impl Default for Cursor {
     fn default() -> Cursor {
+        let position = Point { x: 1, y: 0 };
         Cursor {
-            position: Point { x: 1, y: 0 },
+            selection_edge: position.clone(),
+            position,
             stored_x: 0,
         }
+    }
+}
+
+fn get_ropey_index_from_cursor(position: &Point, rope: &Rope) -> usize {
+    rope.line_to_char(position.y as usize) + position.x as usize - 1
+}
+
+fn get_char_range(
+    position: &Point,
+    selection_edge: &Point,
+    rope: &Rope,
+) -> std::ops::RangeInclusive<usize> {
+    let start_index = get_ropey_index_from_cursor(position, rope);
+    let end_index = get_ropey_index_from_cursor(selection_edge, rope);
+    if start_index < end_index {
+        start_index..=end_index
+    } else {
+        end_index..=start_index
     }
 }
 
@@ -26,19 +47,9 @@ struct State {
     cursors: SecondaryMap<BufferIndex, Cursor>,
 }
 
-#[no_mangle]
-pub fn render(
-    global_data: &GlobalData,
-    client: &ClientIndex,
-    back_buffer: &mut BackBuffer,
-    utils: &Utils,
-    data_ptr: *mut c_void,
-) {
-    let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
-    // let (cols, rows) = (100, 50);//terminal_size().unwrap();
-    if let Some(Rect { w, h }) = global_data.clients[*client].size {
-        //(100, 50);//termion::terminal_size().unwrap();
-        let display = match global_data.clients[*client].mode {
+fn write_mode_status(back_buffer: &mut BackBuffer, client: &Client, utils: &Utils) {
+    if let Some(Rect { w, h }) = client.size {
+        let display = match client.mode {
             Mode::Normal => "NORMAL",
             Mode::Insert => "INSERT",
             Mode::Command => "COMMAND",
@@ -55,9 +66,54 @@ pub fn render(
             None,
         );
     }
+}
+
+fn apply_selection_style(back_buffer: &mut BackBuffer, utils: &Utils, cursor: &Cursor) {
+    let (start_point, len) = if cursor.selection_edge > cursor.position {
+        (
+            Point {
+                x: cursor.position.x + 4,
+                y: cursor.position.y,
+            },
+            cursor.selection_edge.x - cursor.position.x,
+        )
+    } else {
+        (
+            Point {
+                x: cursor.selection_edge.x + 3,
+                y: cursor.position.y,
+            },
+            cursor.position.x - cursor.selection_edge.x,
+        )
+    };
+    (utils.style_range)(
+        back_buffer,
+        &start_point,
+        len as usize,
+        None,
+        None,
+        Some(Color {
+            r: 0,
+            g: 50,
+            b: 200,
+        }),
+    );
+}
+
+#[no_mangle]
+pub fn render(
+    global_data: &GlobalData,
+    client: &ClientIndex,
+    back_buffer: &mut BackBuffer,
+    utils: &Utils,
+    data_ptr: *mut c_void,
+) {
+    let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
+    write_mode_status(back_buffer, &global_data.clients[*client], utils);
     use std::io::Write;
     let mut stream = global_data.clients[*client].stream.try_clone().unwrap();
     let cursor = get_or_insert_cursor(&mut data, &global_data, client);
+    apply_selection_style(back_buffer, utils, &cursor);
     let current_buffer = global_data.clients[*client].buffer;
     if global_data.clients[*client].mode != Mode::Command {
         write!(
@@ -73,12 +129,10 @@ pub fn render(
     std::mem::forget(data);
 }
 
-fn get_ropey_index_from_cursor(position: &Point, rope: &Rope) -> usize {
-    rope.line_to_char(position.y as usize) + position.x as usize - 1
-}
-
 fn get_new_x_position(cursor: &Cursor, rope: &Rope) -> u16 {
-    let Cursor { position, stored_x } = cursor;
+    let Cursor {
+        position, stored_x, ..
+    } = cursor;
     std::cmp::min(
         std::cmp::max(position.x, *stored_x),
         std::cmp::max(1, rope.line(position.y as usize).len_chars() as u16),
@@ -160,9 +214,30 @@ pub fn update(
                             cursor.position.x = get_new_x_position(&cursor, &rope);
                         }
                     }
+                    cursor.selection_edge = cursor.position.clone();
+                }
+                MoveSelection(dir) => {
+                    use Direction::*;
+                    match dir {
+                        Left => {
+                            if cursor.selection_edge.x > 1 {
+                                cursor.selection_edge.x -= 1;
+                            }
+                        }
+                        Right => {
+                            if cursor.selection_edge.x
+                                < rope.line(cursor.position.y as usize).len_chars() as u16
+                            {
+                                cursor.selection_edge.x += 1;
+                            }
+                        }
+                        Up => unimplemented!(),
+                        Down => unimplemented!(),
+                    }
                 }
                 ChangeMode(ref mode) => {
                     global_data.clients[*client].mode = mode.clone();
+                    cursor.selection_edge = cursor.position.clone();
                 }
                 InsertChar(c) => match global_data.clients[*client].mode {
                     Mode::Command => {}
@@ -175,6 +250,7 @@ pub fn update(
                             send_cmd(*client, MoveCursor(Direction::Right));
                         }
                         send_cmd(*client, BufferModified);
+                        cursor.selection_edge = cursor.position.clone();
                     }
                 },
                 DeleteChar(dir) => match global_data.clients[*client].mode {
@@ -183,7 +259,11 @@ pub fn update(
                         let index = get_ropey_index_from_cursor(&cursor.position, &rope);
                         match dir {
                             DeleteDirection::After => {
-                                rope.remove(index..index + 1);
+                                rope.remove(get_char_range(
+                                    &cursor.position,
+                                    &cursor.selection_edge,
+                                    &rope,
+                                ));
                             }
                             DeleteDirection::Before => {
                                 if cursor.position.x > 1 {
@@ -193,6 +273,12 @@ pub fn update(
                             }
                         }
                         send_cmd(*client, BufferModified);
+                        if cursor.selection_edge < cursor.position {
+                            cursor.position = cursor.selection_edge.clone();
+                        } else {
+                            cursor.selection_edge = cursor.position.clone();
+                        }
+                        cursor.stored_x = cursor.position.x;
                     }
                 },
                 Jump(jump_type) => {
