@@ -1,11 +1,11 @@
-use ra_ide_api::{AnalysisChange, AnalysisHost, FileId, HighlightedRange, SourceRootId, Analysis};
+use ra_ide_api::{Analysis, AnalysisChange, AnalysisHost, FileId, HighlightedRange, SourceRootId};
 use ra_syntax::TextRange;
 use types::{
-    BackBuffer, BufferIndex, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType,
-    KeyData, Mode, Msg, Point, Rect, SecondaryMap, Utils, Buffer,
+    BackBuffer, Buffer, BufferIndex, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData,
+    JumpType, KeyData, Mode, Msg, Point, Rect, SecondaryMap, Utils,
 };
 mod colors;
-use colors::{get_color_from_tag, get_color_from_severity};
+use colors::{get_color_from_severity, get_color_from_tag};
 
 #[derive(Debug, Default)]
 pub struct Cursor {
@@ -44,15 +44,38 @@ pub fn get_pos_len_from_text_range(text_range: TextRange, buffer: &Buffer) -> (P
     (start_point, length)
 }
 
-pub fn draw_diagnostics(analysis: &Analysis, file_id: FileId, buffer: &Buffer, back_buffer: &mut BackBuffer, utils: &Utils) {
+pub fn draw_diagnostics(
+    analysis: &Analysis,
+    file_id: FileId,
+    buffer: &Buffer,
+    back_buffer: &mut BackBuffer,
+    utils: &Utils,
+) {
     if let Ok(diagnostics) = analysis.diagnostics(file_id) {
         for diagnostic in diagnostics {
             (utils.info)(&format!("diagnostic: {:?}", diagnostic));
             let (start_point, length) = get_pos_len_from_text_range(diagnostic.range, buffer);
             let color = get_color_from_severity(diagnostic.severity);
-            (utils.style_range)(back_buffer, &start_point, length, None, None, Some(color.clone()));
+            (utils.style_range)(
+                back_buffer,
+                &start_point,
+                length,
+                None,
+                None,
+                Some(color.clone()),
+            );
             let diagnostic_text_x = buffer.rope.line(start_point.y as usize).len_chars() as u16 + 5;
-            (utils.write_to_buffer)(back_buffer, &Point { x: diagnostic_text_x, y: start_point.y }, &diagnostic.message, None, None, Some(color));
+            (utils.write_to_buffer)(
+                back_buffer,
+                &Point {
+                    x: diagnostic_text_x,
+                    y: start_point.y,
+                },
+                &diagnostic.message,
+                None,
+                None,
+                Some(color),
+            );
         }
     }
 }
@@ -97,7 +120,7 @@ pub fn render(
 pub fn update(
     global_data: &mut GlobalData,
     msg: &Msg,
-    _utils: &Utils,
+    utils: &Utils,
     _send_cmd: &Box<Fn(ClientIndex, Cmd)>,
     data_ptr: *mut c_void,
 ) {
@@ -126,10 +149,9 @@ pub fn update(
                 let buffer = &mut global_data.buffers[buffer_index];
                 data.analysisHost.apply_change({
                     let mut change = AnalysisChange::new();
-                    change.change_file(
-                        file_id_from_buffer_index(buffer_index),
-                        std::sync::Arc::new(String::from(buffer.rope.clone())),
-                    );
+                    let new_source = std::sync::Arc::new(String::from(buffer.rope.clone()));
+                    (utils.info)(&format!("{}", new_source));
+                    change.change_file(file_id_from_buffer_index(buffer_index), new_source);
                     change
                 });
             }

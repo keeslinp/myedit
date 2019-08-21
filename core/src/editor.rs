@@ -9,7 +9,7 @@ use log4rs::encode::pattern::PatternEncoder;
 use std::collections::HashMap;
 use std::default::Default;
 use std::ffi::c_void;
-use std::io::{Write};
+use std::io::Write;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::{fs, path, time};
 
