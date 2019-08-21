@@ -3,21 +3,21 @@ use ropey::Rope;
 use termion::cursor::{Goto, Show};
 use types::{
     BackBuffer, BufferIndex, Client, ClientIndex, Cmd, Color, DeleteDirection, Direction,
-    GlobalData, JumpType, Mode, Msg, Point, Rect, SecondaryMap, Utils,
+    GlobalData, JumpType, Mode, Msg, Point, Rect, SecondaryMap, Utils, Buffer,
 };
 
 #[derive(Debug)]
 struct Cursor {
     position: Point,
     stored_x: u16,
-    selection_edge: Point,
+    selection_anchor: Option<Point>,
 }
 
 impl Default for Cursor {
     fn default() -> Cursor {
         let position = Point { x: 1, y: 0 };
         Cursor {
-            selection_edge: position.clone(),
+            selection_anchor: None,
             position,
             stored_x: 0,
         }
@@ -30,11 +30,11 @@ fn get_ropey_index_from_cursor(position: &Point, rope: &Rope) -> usize {
 
 fn get_char_range(
     position: &Point,
-    selection_edge: &Point,
+    selection_anchor: &Point,
     rope: &Rope,
 ) -> std::ops::RangeInclusive<usize> {
     let start_index = get_ropey_index_from_cursor(position, rope);
-    let end_index = get_ropey_index_from_cursor(selection_edge, rope);
+    let end_index = get_ropey_index_from_cursor(selection_anchor, rope);
     if start_index < end_index {
         start_index..=end_index
     } else {
@@ -69,35 +69,37 @@ fn write_mode_status(back_buffer: &mut BackBuffer, client: &Client, utils: &Util
 }
 
 fn apply_selection_style(back_buffer: &mut BackBuffer, utils: &Utils, cursor: &Cursor) {
-    let (start_point, len) = if cursor.selection_edge > cursor.position {
-        (
-            Point {
-                x: cursor.position.x + 4,
-                y: cursor.position.y,
-            },
-            cursor.selection_edge.x - cursor.position.x,
-        )
-    } else {
-        (
-            Point {
-                x: cursor.selection_edge.x + 3,
-                y: cursor.position.y,
-            },
-            cursor.position.x - cursor.selection_edge.x,
-        )
-    };
-    (utils.style_range)(
-        back_buffer,
-        &start_point,
-        len as usize,
-        None,
-        None,
-        Some(Color {
-            r: 0,
-            g: 50,
-            b: 200,
-        }),
-    );
+    if let Some(ref selection_anchor) = cursor.selection_anchor {
+        let (start_point, len) = if *selection_anchor > cursor.position {
+            (
+                Point {
+                    x: cursor.position.x + 4,
+                    y: cursor.position.y,
+                },
+                selection_anchor.x - cursor.position.x,
+            )
+        } else {
+            (
+                Point {
+                    x: selection_anchor.x + 3,
+                    y: cursor.position.y,
+                },
+                cursor.position.x - selection_anchor.x,
+            )
+        };
+        (utils.style_range)(
+            back_buffer,
+            &start_point,
+            len as usize,
+            None,
+            None,
+            Some(Color {
+                r: 0,
+                g: 50,
+                b: 200,
+            }),
+        );
+    }
 }
 
 #[no_mangle]
@@ -152,6 +154,50 @@ fn get_or_insert_cursor<'a>(
     &mut data.cursors[buffer_index]
 }
 
+fn move_cursor_position(cursor: &mut Cursor, dir: &Direction, current_buffer: &mut Buffer, client: &Client) {
+    let rope = &current_buffer.rope;
+    use Direction::*;
+    match dir {
+        Left => {
+            if cursor.position.x > 1 {
+                cursor.position.x -= 1
+            }
+            cursor.stored_x = cursor.position.x;
+        }
+        Right => {
+            cursor.position.x += 1;
+            cursor.stored_x = cursor.position.x;
+        }
+        Up => {
+            if cursor.position.y > 0 {
+                cursor.position.y -= 1;
+            }
+            if (cursor.position.y as usize) < current_buffer.start_line {
+                current_buffer.start_line -= 1;
+            }
+        }
+        Down => {
+            if (cursor.position.y as usize) + 2 < rope.len_lines() {
+                cursor.position.y += 1;
+            }
+            if (cursor.position.y as usize)
+                >= current_buffer.start_line
+                    + (client
+                        .size
+                        .as_ref()
+                        .map(|s| s.h)
+                        .unwrap_or(0)
+                        as usize
+                        - 1)
+            {
+                current_buffer.start_line += 1;
+            }
+        }
+    }
+    // Make sure we don't venture to nowhere
+    cursor.position.x = get_new_x_position(&cursor, &rope);
+}
+
 #[no_mangle]
 pub fn update(
     global_data: &mut GlobalData,
@@ -163,97 +209,45 @@ pub fn update(
     let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     use Cmd::*;
     match cmd {
-        Msg::Cmd(client, cmd) => {
-            let cursor = get_or_insert_cursor(&mut data, &global_data, client);
-            let current_buffer = &mut global_data.buffers[global_data.clients[*client].buffer];
+        Msg::Cmd(client_index, cmd) => {
+            let cursor = get_or_insert_cursor(&mut data, &global_data, client_index);
+            let current_buffer = &mut global_data.buffers[global_data.clients[*client_index].buffer];
             let rope = &mut current_buffer.rope;
+            let client = &global_data.clients[*client_index];
             match cmd {
                 MoveCursor(dir) => {
-                    use Direction::*;
-                    match global_data.clients[*client].mode {
+                    match global_data.clients[*client_index].mode {
                         Mode::Command => {}
-                        _ => {
-                            match dir {
-                                Left => {
-                                    if cursor.position.x > 1 {
-                                        cursor.position.x -= 1
-                                    }
-                                    cursor.stored_x = cursor.position.x;
-                                }
-                                Right => {
-                                    cursor.position.x += 1;
-                                    cursor.stored_x = cursor.position.x;
-                                }
-                                Up => {
-                                    if cursor.position.y > 0 {
-                                        cursor.position.y -= 1;
-                                    }
-                                    if (cursor.position.y as usize) < current_buffer.start_line {
-                                        current_buffer.start_line -= 1;
-                                    }
-                                }
-                                Down => {
-                                    if (cursor.position.y as usize) + 2 < rope.len_lines() {
-                                        cursor.position.y += 1;
-                                    }
-                                    if (cursor.position.y as usize)
-                                        >= current_buffer.start_line
-                                            + (global_data.clients[*client]
-                                                .size
-                                                .as_ref()
-                                                .map(|s| s.h)
-                                                .unwrap_or(0)
-                                                as usize
-                                                - 1)
-                                    {
-                                        current_buffer.start_line += 1;
-                                    }
-                                }
-                            }
-                            // Make sure we don't venture to nowhere
-                            cursor.position.x = get_new_x_position(&cursor, &rope);
-                        }
+                        _ => move_cursor_position(cursor, dir, current_buffer, client),
                     }
-                    cursor.selection_edge = cursor.position.clone();
+                    cursor.selection_anchor = None;
                 }
                 MoveSelection(dir) => {
                     use Direction::*;
-                    match dir {
-                        Left => {
-                            if cursor.selection_edge.x > 1 {
-                                cursor.selection_edge.x -= 1;
-                            }
-                        }
-                        Right => {
-                            if cursor.selection_edge.x
-                                < rope.line(cursor.position.y as usize).len_chars() as u16
-                            {
-                                cursor.selection_edge.x += 1;
-                            }
-                        }
-                        Up => unimplemented!(),
-                        Down => unimplemented!(),
+                    if cursor.selection_anchor.is_none() {
+                        cursor.selection_anchor = Some(cursor.position.clone());
                     }
+                    move_cursor_position(cursor, dir, current_buffer, client)
                 }
                 ChangeMode(ref mode) => {
-                    global_data.clients[*client].mode = mode.clone();
-                    cursor.selection_edge = cursor.position.clone();
+                    global_data.clients[*client_index].mode = mode.clone();
+                    cursor.selection_anchor = None;
                 }
-                InsertChar(c) => match global_data.clients[*client].mode {
+                InsertChar(c) => match global_data.clients[*client_index].mode {
                     Mode::Command => {}
                     _ => {
                         let index = get_ropey_index_from_cursor(&cursor.position, &rope);
                         rope.insert_char(index, *c);
                         if *c == '\n' {
-                            send_cmd(*client, MoveCursor(Direction::Down));
+                            send_cmd(*client_index, MoveCursor(Direction::Down));
                         } else {
-                            send_cmd(*client, MoveCursor(Direction::Right));
+                            send_cmd(*client_index, MoveCursor(Direction::Right));
                         }
-                        send_cmd(*client, BufferModified);
-                        cursor.selection_edge = cursor.position.clone();
+                        send_cmd(*client_index, BufferModified);
+                        cursor.selection_anchor = None;
                     }
                 },
-                DeleteChar(dir) => match global_data.clients[*client].mode {
+                DeleteChar(dir) => match global_data.clients[*client_index].mode {
                     Mode::Command => {}
                     _ => {
                         let index = get_ropey_index_from_cursor(&cursor.position, &rope);
@@ -261,7 +255,7 @@ pub fn update(
                             DeleteDirection::After => {
                                 rope.remove(get_char_range(
                                     &cursor.position,
-                                    &cursor.selection_edge,
+                                    cursor.selection_anchor.as_ref().unwrap_or(&cursor.position),
                                     &rope,
                                 ));
                             }
@@ -272,11 +266,11 @@ pub fn update(
                                 }
                             }
                         }
-                        send_cmd(*client, BufferModified);
-                        if cursor.selection_edge < cursor.position {
-                            cursor.position = cursor.selection_edge.clone();
-                        } else {
-                            cursor.selection_edge = cursor.position.clone();
+                        send_cmd(*client_index, BufferModified);
+                        if let Some(selection_anchor) = cursor.selection_anchor.take() {
+                            if selection_anchor < cursor.position {
+                                cursor.position = selection_anchor.clone();
+                            }
                         }
                         cursor.stored_x = cursor.position.x;
                     }
@@ -286,7 +280,7 @@ pub fn update(
                     match jump_type {
                         EndOfLine => {
                             let mut position = &mut cursor.position;
-                            position.x = global_data.buffers[global_data.clients[*client].buffer]
+                            position.x = global_data.buffers[global_data.clients[*client_index].buffer]
                                 .rope
                                 .line(position.y as usize)
                                 .len_chars() as u16
