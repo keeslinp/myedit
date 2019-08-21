@@ -1,9 +1,7 @@
 use ropey::Rope;
 use std::ffi::c_void;
 
-use termion::{
-    cursor::{Goto, Show},
-};
+use termion::cursor::{Goto, Show};
 use types::{
     BackBuffer, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, Mode, Msg, Point, Rect,
     Utils,

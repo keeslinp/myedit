@@ -1,8 +1,6 @@
 use ropey::Rope;
 
-use termion::{
-    cursor::{Goto, Show},
-};
+use termion::cursor::{Goto, Show};
 use types::{
     BackBuffer, BufferIndex, ClientIndex, Cmd, DeleteDirection, Direction, GlobalData, JumpType,
     Mode, Msg, Point, Rect, SecondaryMap, Utils,
@@ -83,7 +81,7 @@ fn get_new_x_position(cursor: &Cursor, rope: &Rope) -> u16 {
     let Cursor { position, stored_x } = cursor;
     std::cmp::min(
         std::cmp::max(position.x, *stored_x),
-        rope.line(position.y as usize).len_chars() as u16,
+        std::cmp::max(1, rope.line(position.y as usize).len_chars() as u16),
     )
 }
 
@@ -141,7 +139,7 @@ pub fn update(
                                     }
                                 }
                                 Down => {
-                                    if (cursor.position.y as usize) + 1 < rope.len_lines() {
+                                    if (cursor.position.y as usize) + 2 < rope.len_lines() {
                                         cursor.position.y += 1;
                                     }
                                     if (cursor.position.y as usize)

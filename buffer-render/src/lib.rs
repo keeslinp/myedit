@@ -8,20 +8,6 @@ struct Data {
     val: bool,
 }
 
-// impl Default for Data {
-//     fn default() -> Data {
-//         Data { val: false }
-//     }
-// }
-
-// fn color_from_syntect_color(color: &syntect::highlighting::Color) -> Color {
-//     Color {
-//         r: color.r,
-//         g: color.g,
-//         b: color.b,
-//     }
-// }
-
 #[no_mangle]
 pub fn render(
     global_data: &GlobalData,
@@ -34,38 +20,38 @@ pub fn render(
     let buffer = &global_data.buffers[global_data.clients[*client].buffer];
     if let Some(Rect { w: _, h }) = global_data.clients[*client].size {
         //(100, 50);//termion::terminal_size().unwrap();
-        for (index, (line_number, line)) in buffer
-            .rope
-            .lines()
-            .enumerate()
-            .skip(buffer.start_line)
-            .take(h as usize - 1)
-            .enumerate()
-        {
-            // eprintln!("{}", line.len_chars());
+        let start_line = buffer.start_line;
+        let lines_to_render = std::cmp::min(buffer.rope.len_lines() - 1, h as usize - 1);
+        for screen_line in (0..lines_to_render) {
+            let buffer_line = screen_line + start_line;
+            let line = buffer.rope.line(buffer_line);
             (utils.write_to_buffer)(
                 back_buffer,
                 &Point {
                     x: 0,
-                    y: index as u16,
+                    y: screen_line as u16,
                 },
-                &format!("{}", line_number + 1),
+                &format!("{}", buffer_line + 1),
                 None,
                 None,
                 None,
             );
-            (utils.write_to_buffer)(
-                back_buffer,
-                &Point {
-                    x: 4,
-                    y: index as u16,
-                },
-                line.as_str().unwrap_or(""),
-                None,
-                None,
-                None,
-            );
+            if let Some(line) = line.as_str() {
+                (utils.write_to_buffer)(
+                    back_buffer,
+                    &Point {
+                        x: 4,
+                        y: screen_line as u16,
+                    },
+                    line,
+                    None,
+                    None,
+                    None,
+                );
+            }
         }
+    } else {
+        (utils.warn)("Missing client size");
     }
     std::mem::forget(data);
 }
