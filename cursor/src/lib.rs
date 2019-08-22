@@ -2,8 +2,8 @@ use ropey::Rope;
 
 use termion::cursor::{Goto, Show};
 use types::{
-    BackBuffer, BufferIndex, Client, ClientIndex, Cmd, Color, DeleteDirection, Direction,
-    GlobalData, JumpType, Mode, Msg, Point, Rect, SecondaryMap, Utils, Buffer,
+    BackBuffer, Buffer, BufferIndex, Client, ClientIndex, Cmd, Color, DeleteDirection, Direction,
+    GlobalData, JumpType, Mode, Msg, Point, Rect, SecondaryMap, Utils,
 };
 
 #[derive(Debug)]
@@ -68,20 +68,25 @@ fn write_mode_status(back_buffer: &mut BackBuffer, client: &Client, utils: &Util
     }
 }
 
-fn apply_selection_style(back_buffer: &mut BackBuffer, utils: &Utils, cursor: &Cursor, rope: &Rope) {
+fn apply_selection_style(
+    back_buffer: &mut BackBuffer,
+    utils: &Utils,
+    cursor: &Cursor,
+    rope: &Rope,
+) {
     if let Some(ref selection_anchor) = cursor.selection_anchor {
         let char_range = get_char_range(&cursor.position, selection_anchor, rope);
         let slice = rope.slice(char_range);
         let start_point = if *selection_anchor > cursor.position {
-                Point {
-                    x: cursor.position.x + 3,
-                    y: cursor.position.y,
-                }
+            Point {
+                x: cursor.position.x + 3,
+                y: cursor.position.y,
+            }
         } else {
-                Point {
-                    x: selection_anchor.x + 3,
-                    y: selection_anchor.y,
-                }
+            Point {
+                x: selection_anchor.x + 3,
+                y: selection_anchor.y,
+            }
         };
         (utils.style_rope_slice_range)(
             back_buffer,
@@ -152,7 +157,12 @@ fn get_or_insert_cursor<'a>(
     &mut data.cursors[buffer_index]
 }
 
-fn move_cursor_position(cursor: &mut Cursor, dir: &Direction, current_buffer: &mut Buffer, client: &Client) {
+fn move_cursor_position(
+    cursor: &mut Cursor,
+    dir: &Direction,
+    current_buffer: &mut Buffer,
+    client: &Client,
+) {
     let rope = &current_buffer.rope;
     use Direction::*;
     match dir {
@@ -180,13 +190,7 @@ fn move_cursor_position(cursor: &mut Cursor, dir: &Direction, current_buffer: &m
             }
             if (cursor.position.y as usize)
                 >= current_buffer.start_line
-                    + (client
-                        .size
-                        .as_ref()
-                        .map(|s| s.h)
-                        .unwrap_or(0)
-                        as usize
-                        - 1)
+                    + (client.size.as_ref().map(|s| s.h).unwrap_or(0) as usize - 1)
             {
                 current_buffer.start_line += 1;
             }
@@ -209,7 +213,8 @@ pub fn update(
     match cmd {
         Msg::Cmd(client_index, cmd) => {
             let cursor = get_or_insert_cursor(&mut data, &global_data, client_index);
-            let current_buffer = &mut global_data.buffers[global_data.clients[*client_index].buffer];
+            let current_buffer =
+                &mut global_data.buffers[global_data.clients[*client_index].buffer];
             let rope = &mut current_buffer.rope;
             let client = &global_data.clients[*client_index];
             match cmd {
@@ -277,7 +282,8 @@ pub fn update(
                     match jump_type {
                         EndOfLine => {
                             let mut position = &mut cursor.position;
-                            position.x = global_data.buffers[global_data.clients[*client_index].buffer]
+                            position.x = global_data.buffers
+                                [global_data.clients[*client_index].buffer]
                                 .rope
                                 .line(position.y as usize)
                                 .len_chars() as u16
