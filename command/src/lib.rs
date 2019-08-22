@@ -134,7 +134,7 @@ pub fn update(
                     data.command_buffer
                         .text
                         .insert(data.command_buffer.index, *c);
-                    send_cmd(*client, MoveCursor(Direction::Right));
+                    send_cmd(*client, MoveCursor(Direction::Right, false));
                 }
                 _ => {}
             },
@@ -145,14 +145,14 @@ pub fn update(
                             data.command_buffer
                                 .text
                                 .remove(data.command_buffer.index - 1);
-                            send_cmd(*client, MoveCursor(Direction::Left));
+                            send_cmd(*client, MoveCursor(Direction::Left, false));
                         }
                     }
                     DeleteDirection::After => {}
                 },
                 _ => {}
             },
-            MoveCursor(dir) => {
+            MoveCursor(dir, _selecting) => {
                 use Direction::*;
                 match global_data.clients[*client].mode {
                     Mode::Command => {

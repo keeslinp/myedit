@@ -25,10 +25,10 @@ pub fn update(
             // Same for all modes
             match evt {
                 Event::Key(k) => match k {
-                    Key::Left => send_cmd(*client, Cmd::MoveCursor(Direction::Left)),
-                    Key::Right => send_cmd(*client, Cmd::MoveCursor(Direction::Right)),
-                    Key::Up => send_cmd(*client, Cmd::MoveCursor(Direction::Up)),
-                    Key::Down => send_cmd(*client, Cmd::MoveCursor(Direction::Down)),
+                    Key::Left => send_cmd(*client, Cmd::MoveCursor(Direction::Left, false)),
+                    Key::Right => send_cmd(*client, Cmd::MoveCursor(Direction::Right, false)),
+                    Key::Up => send_cmd(*client, Cmd::MoveCursor(Direction::Up, false)),
+                    Key::Down => send_cmd(*client, Cmd::MoveCursor(Direction::Down, false)),
                     _ => {}
                 },
                 _ => {}
@@ -37,17 +37,17 @@ pub fn update(
                 Mode::Normal => match evt {
                     Event::Key(Key::Char(c)) => match c {
                         'i' => send_cmd(*client, Cmd::ChangeMode(Mode::Insert)),
-                        'l' => send_cmd(*client, Cmd::MoveCursor(Direction::Right)),
-                        'h' => send_cmd(*client, Cmd::MoveCursor(Direction::Left)),
-                        'j' => send_cmd(*client, Cmd::MoveCursor(Direction::Down)),
-                        'k' => send_cmd(*client, Cmd::MoveCursor(Direction::Up)),
-                        'L' => send_cmd(*client, Cmd::MoveSelection(Direction::Right)),
-                        'H' => send_cmd(*client, Cmd::MoveSelection(Direction::Left)),
-                        'J' => send_cmd(*client, Cmd::MoveSelection(Direction::Down)),
-                        'K' => send_cmd(*client, Cmd::MoveSelection(Direction::Up)),
+                        'l' => send_cmd(*client, Cmd::MoveCursor(Direction::Right, false)),
+                        'h' => send_cmd(*client, Cmd::MoveCursor(Direction::Left, false)),
+                        'j' => send_cmd(*client, Cmd::MoveCursor(Direction::Down, false)),
+                        'k' => send_cmd(*client, Cmd::MoveCursor(Direction::Up, false)),
+                        'L' => send_cmd(*client, Cmd::MoveCursor(Direction::Right, true)),
+                        'H' => send_cmd(*client, Cmd::MoveCursor(Direction::Left, true)),
+                        'J' => send_cmd(*client, Cmd::MoveCursor(Direction::Down, true)),
+                        'K' => send_cmd(*client, Cmd::MoveCursor(Direction::Up, true)),
                         'd' => send_cmd(*client, Cmd::DeleteChar(DeleteDirection::After)),
                         'a' => {
-                            send_cmd(*client, Cmd::MoveCursor(Direction::Right));
+                            send_cmd(*client, Cmd::MoveCursor(Direction::Right, false));
                             send_cmd(*client, Cmd::ChangeMode(Mode::Insert));
                         }
                         'A' => {

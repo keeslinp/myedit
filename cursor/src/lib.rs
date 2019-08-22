@@ -68,29 +68,25 @@ fn write_mode_status(back_buffer: &mut BackBuffer, client: &Client, utils: &Util
     }
 }
 
-fn apply_selection_style(back_buffer: &mut BackBuffer, utils: &Utils, cursor: &Cursor) {
+fn apply_selection_style(back_buffer: &mut BackBuffer, utils: &Utils, cursor: &Cursor, rope: &Rope) {
     if let Some(ref selection_anchor) = cursor.selection_anchor {
-        let (start_point, len) = if *selection_anchor > cursor.position {
-            (
+        let char_range = get_char_range(&cursor.position, selection_anchor, rope);
+        let slice = rope.slice(char_range);
+        let start_point = if *selection_anchor > cursor.position {
                 Point {
-                    x: cursor.position.x + 4,
+                    x: cursor.position.x + 3,
                     y: cursor.position.y,
-                },
-                selection_anchor.x - cursor.position.x,
-            )
+                }
         } else {
-            (
                 Point {
                     x: selection_anchor.x + 3,
-                    y: cursor.position.y,
-                },
-                cursor.position.x - selection_anchor.x,
-            )
+                    y: selection_anchor.y,
+                }
         };
-        (utils.style_range)(
+        (utils.style_rope_slice_range)(
             back_buffer,
-            &start_point,
-            len as usize,
+            &slice,
+            start_point,
             None,
             None,
             Some(Color {
@@ -115,7 +111,9 @@ pub fn render(
     use std::io::Write;
     let mut stream = global_data.clients[*client].stream.try_clone().unwrap();
     let cursor = get_or_insert_cursor(&mut data, &global_data, client);
-    apply_selection_style(back_buffer, utils, &cursor);
+    let buffer_index = global_data.clients[*client].buffer;
+    let rope = &global_data.buffers[buffer_index].rope;
+    apply_selection_style(back_buffer, utils, &cursor, rope);
     let current_buffer = global_data.clients[*client].buffer;
     if global_data.clients[*client].mode != Mode::Command {
         write!(
@@ -215,19 +213,18 @@ pub fn update(
             let rope = &mut current_buffer.rope;
             let client = &global_data.clients[*client_index];
             match cmd {
-                MoveCursor(dir) => {
+                MoveCursor(dir, selecting) => {
+                    if *selecting {
+                        if cursor.selection_anchor.is_none() {
+                            cursor.selection_anchor = Some(cursor.position.clone());
+                        }
+                    } else {
+                        cursor.selection_anchor = None;
+                    }
                     match global_data.clients[*client_index].mode {
                         Mode::Command => {}
                         _ => move_cursor_position(cursor, dir, current_buffer, client),
                     }
-                    cursor.selection_anchor = None;
-                }
-                MoveSelection(dir) => {
-                    use Direction::*;
-                    if cursor.selection_anchor.is_none() {
-                        cursor.selection_anchor = Some(cursor.position.clone());
-                    }
-                    move_cursor_position(cursor, dir, current_buffer, client)
                 }
                 ChangeMode(ref mode) => {
                     global_data.clients[*client_index].mode = mode.clone();
@@ -239,9 +236,9 @@ pub fn update(
                         let index = get_ropey_index_from_cursor(&cursor.position, &rope);
                         rope.insert_char(index, *c);
                         if *c == '\n' {
-                            send_cmd(*client_index, MoveCursor(Direction::Down));
+                            send_cmd(*client_index, MoveCursor(Direction::Down, false));
                         } else {
-                            send_cmd(*client_index, MoveCursor(Direction::Right));
+                            send_cmd(*client_index, MoveCursor(Direction::Right, false));
                         }
                         send_cmd(*client_index, BufferModified);
                         cursor.selection_anchor = None;

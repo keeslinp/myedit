@@ -1,4 +1,4 @@
-use crate::back_buffer::{style_range, write_to_buffer};
+use crate::back_buffer::{style_range, style_rope_slice_range, write_to_buffer};
 use log::{debug, info, warn};
 use types::Utils;
 
@@ -21,5 +21,6 @@ pub fn build_utils() -> Utils {
         warn,
         debug,
         style_range,
+        style_rope_slice_range,
     }
 }

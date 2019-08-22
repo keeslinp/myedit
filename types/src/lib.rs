@@ -1,5 +1,5 @@
 use notify::DebouncedEvent;
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 pub use slotmap::{DefaultKey, KeyData, SecondaryMap, SlotMap};
 use std::os::unix::net::UnixStream;
 
@@ -95,8 +95,7 @@ pub struct InitializeClient(pub ClientIndex);
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum Cmd {
-    MoveSelection(Direction),
-    MoveCursor(Direction),
+    MoveCursor(Direction, bool),
     Quit,
     Kill,
     ChangeMode(Mode),
@@ -147,6 +146,8 @@ pub struct Utils {
         fn(&mut BackBuffer, &Point, &str, Option<Style>, Option<Color>, Option<Color>),
     pub style_range:
         fn(&mut BackBuffer, &Point, usize, Option<Style>, Option<Color>, Option<Color>),
+    pub style_rope_slice_range:
+        fn(&mut BackBuffer, &RopeSlice, Point, Option<Style>, Option<Color>, Option<Color>),
     pub info: fn(&str),
     pub debug: fn(&str),
     pub warn: fn(&str),
