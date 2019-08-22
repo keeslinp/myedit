@@ -1,4 +1,5 @@
 use log::warn;
+use ropey::RopeSlice;
 use std::io::Write;
 use types::{BackBuffer, Cell, Color, Point, Rect, Style};
 
@@ -43,6 +44,28 @@ pub fn style_range(
         }
         let cell = &mut back_buffer.cells[index + offset];
         apply_updates_to_cell(cell, None, style.clone(), fg.clone(), bg.clone());
+    }
+}
+
+pub fn style_rope_slice_range(
+    back_buffer: &mut BackBuffer,
+    rope_slice: &RopeSlice,
+    mut position: Point,
+    style: Option<Style>,
+    fg: Option<Color>,
+    bg: Option<Color>,
+) {
+    for line in rope_slice.lines() {
+        style_range(
+            back_buffer,
+            &position,
+            line.len_chars(),
+            style.clone(),
+            fg.clone(),
+            bg.clone(),
+        );
+        position.x = 4;
+        position.y += 1;
     }
 }
 

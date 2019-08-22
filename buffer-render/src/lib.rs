@@ -22,7 +22,7 @@ pub fn render(
         //(100, 50);//termion::terminal_size().unwrap();
         let start_line = buffer.start_line;
         let lines_to_render = std::cmp::min(buffer.rope.len_lines() - 1, h as usize - 1);
-        for screen_line in (0..lines_to_render) {
+        for screen_line in 0..lines_to_render {
             let buffer_line = screen_line + start_line;
             let line = buffer.rope.line(buffer_line);
             (utils.write_to_buffer)(
