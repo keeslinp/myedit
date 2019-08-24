@@ -10,4 +10,5 @@ members = [
     "command",
     "lang-rust",
     "buffer-editor",
+    "registers",
 ]

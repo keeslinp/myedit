@@ -174,6 +174,21 @@ fn get_point_to_left(position: &Point, rope: &Rope) -> Point {
     }
 }
 
+fn get_point_to_right(position: &Point, rope: &Rope) -> Point {
+    let line_len = rope.line(position.y as usize).len_chars();
+    if position.x as usize >= line_len {
+        Point {
+            x: 1,
+            y: position.y + 1,
+        }
+    } else {
+        Point {
+            x: position.x + 1,
+            y: position.y,
+        }
+    }
+}
+
 fn move_cursor_position(
     cursor: &mut Cursor,
     dir: &Direction,
@@ -188,7 +203,7 @@ fn move_cursor_position(
             cursor.stored_x = cursor.position.x;
         }
         Right => {
-            cursor.position.x += 1;
+            cursor.position = get_point_to_right(&cursor.position, rope);
             cursor.stored_x = cursor.position.x;
         }
         Up => {
@@ -253,15 +268,11 @@ pub fn update(
                 InsertChar(c) => match global_data.clients[*client_index].mode {
                     Mode::Command => {}
                     _ => {
-                        if *c == '\n' {
-                            send_cmd(*client_index, MoveCursor(Direction::Down, false));
-                        } else {
-                            send_cmd(*client_index, MoveCursor(Direction::Right, false));
-                        }
                         send_cmd(
                             *client_index,
                             InsertCharAtPoint(*c, cursor.position.clone()),
                         );
+                        send_cmd(*client_index, MoveCursor(Direction::Right, false));
                         cursor.selection_anchor = None;
                     }
                 },
@@ -316,6 +327,16 @@ pub fn update(
                         }
                         _ => {}
                     }
+                }
+                Yank => {
+                    if let Some(ref selection_anchor) = cursor.selection_anchor {
+                        let slice = rope.slice(get_char_range(&cursor.position, selection_anchor, rope));
+                        let string = String::from(slice);
+                        send_cmd(*client_index, YankValue(string));
+                    }
+                }
+                Paste => {
+                    send_cmd(*client_index, PasteAtPoint(cursor.position.clone()));
                 }
                 _ => {}
             }

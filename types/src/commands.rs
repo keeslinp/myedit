@@ -9,6 +9,7 @@ pub enum Cmd {
     ChangeMode(Mode),
     InsertChar(char),
     InsertCharAtPoint(char, Point),
+    InsertStringAtPoint(String, Point),
     DeleteCharRange(Point, Point),
     DeleteChar(DeleteDirection),
     Jump(JumpType),
@@ -20,4 +21,8 @@ pub enum Cmd {
     SearchFiles,
     CleanRender,
     ResizeClient(Rect),
+    Yank,
+    YankValue(String),
+    Paste,
+    PasteAtPoint(Point),
 }

@@ -57,6 +57,11 @@ pub fn update(
                     rope.insert_char(index, *c);
                     send_cmd(*client_index, BufferModified);
                 }
+                InsertStringAtPoint(string, point) => {
+                    let index = get_ropey_index_from_point(point, &rope);
+                    rope.insert(index, &string);
+                    send_cmd(*client_index, BufferModified);
+                }
                 DeleteCharRange(start, end) => {
                     rope.remove(get_char_range(start, end, &rope));
                     send_cmd(*client_index, BufferModified);
