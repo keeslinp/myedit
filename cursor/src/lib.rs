@@ -73,21 +73,23 @@ fn apply_selection_style(
     utils: &Utils,
     cursor: &Cursor,
     rope: &Rope,
+    start_line: usize,
 ) {
     if let Some(ref selection_anchor) = cursor.selection_anchor {
         let char_range = get_char_range(&cursor.position, selection_anchor, rope);
         let slice = rope.slice(char_range);
-        let start_point = if *selection_anchor > cursor.position {
+        let mut start_point = if *selection_anchor > cursor.position {
             Point {
-                x: cursor.position.x + 3,
-                y: cursor.position.y,
+                x: cursor.position.x + 3, // Make room for line numbers
+                y: cursor.position.y - start_line as u16, // Prevent scrolling breaking things
             }
         } else {
             Point {
                 x: selection_anchor.x + 3,
-                y: selection_anchor.y,
+                y: selection_anchor.y - start_line as u16,
             }
         };
+
         (utils.style_rope_slice_range)(
             back_buffer,
             &slice,
@@ -118,8 +120,8 @@ pub fn render(
     let cursor = get_or_insert_cursor(&mut data, &global_data, client);
     let buffer_index = global_data.clients[*client].buffer;
     let rope = &global_data.buffers[buffer_index].rope;
-    apply_selection_style(back_buffer, utils, &cursor, rope);
     let current_buffer = global_data.clients[*client].buffer;
+    apply_selection_style(back_buffer, utils, &cursor, rope, global_data.buffers[current_buffer].start_line);
     if global_data.clients[*client].mode != Mode::Command {
         write!(
             stream,
