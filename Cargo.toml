@@ -9,4 +9,5 @@ members = [
     "cursor",
     "command",
     "lang-rust",
+    "buffer-editor",
 ]
