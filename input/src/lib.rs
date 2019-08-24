@@ -61,6 +61,12 @@ pub fn update(
                         ':' => {
                             send_cmd(*client, Cmd::ChangeMode(Mode::Command));
                         }
+                        'y' => {
+                            send_cmd(*client, Cmd::Yank);
+                        }
+                        'p' => {
+                            send_cmd(*client, Cmd::Paste);
+                        }
                         _ => {}
                     },
                     Event::Key(Key::Ctrl(c)) => match c {

@@ -129,7 +129,8 @@ pub fn render(
                 cursor.position.x + 4, // +4 for line numbers
                 cursor.position.y + 1 - global_data.buffers[current_buffer].start_line as u16
             )
-        );
+        )
+        .expect("Writing cursor position to client");
     }
     std::mem::forget(data);
 }
@@ -157,6 +158,37 @@ fn get_or_insert_cursor<'a>(
     &mut data.cursors[buffer_index]
 }
 
+fn get_point_to_left(position: &Point, rope: &Rope) -> Point {
+    if position.x > 1 {
+        Point {
+            x: position.x - 1,
+            y: position.y,
+        }
+    } else {
+        let new_y = position.y - 1;
+        let new_x = rope.line(new_y as usize).len_chars();
+        Point {
+            x: new_x as u16,
+            y: new_y,
+        }
+    }
+}
+
+fn get_point_to_right(position: &Point, rope: &Rope) -> Point {
+    let line_len = rope.line(position.y as usize).len_chars();
+    if position.x as usize >= line_len {
+        Point {
+            x: 1,
+            y: position.y + 1,
+        }
+    } else {
+        Point {
+            x: position.x + 1,
+            y: position.y,
+        }
+    }
+}
+
 fn move_cursor_position(
     cursor: &mut Cursor,
     dir: &Direction,
@@ -167,13 +199,11 @@ fn move_cursor_position(
     use Direction::*;
     match dir {
         Left => {
-            if cursor.position.x > 1 {
-                cursor.position.x -= 1
-            }
+            cursor.position = get_point_to_left(&cursor.position, rope);
             cursor.stored_x = cursor.position.x;
         }
         Right => {
-            cursor.position.x += 1;
+            cursor.position = get_point_to_right(&cursor.position, rope);
             cursor.stored_x = cursor.position.x;
         }
         Up => {
@@ -238,34 +268,38 @@ pub fn update(
                 InsertChar(c) => match global_data.clients[*client_index].mode {
                     Mode::Command => {}
                     _ => {
-                        let index = get_ropey_index_from_cursor(&cursor.position, &rope);
-                        rope.insert_char(index, *c);
-                        if *c == '\n' {
-                            send_cmd(*client_index, MoveCursor(Direction::Down, false));
-                        } else {
-                            send_cmd(*client_index, MoveCursor(Direction::Right, false));
-                        }
-                        send_cmd(*client_index, BufferModified);
+                        send_cmd(
+                            *client_index,
+                            InsertCharAtPoint(*c, cursor.position.clone()),
+                        );
+                        send_cmd(*client_index, MoveCursor(Direction::Right, false));
                         cursor.selection_anchor = None;
                     }
                 },
                 DeleteChar(dir) => match global_data.clients[*client_index].mode {
                     Mode::Command => {}
                     _ => {
-                        let index = get_ropey_index_from_cursor(&cursor.position, &rope);
                         match dir {
                             DeleteDirection::After => {
-                                rope.remove(get_char_range(
-                                    &cursor.position,
-                                    cursor.selection_anchor.as_ref().unwrap_or(&cursor.position),
-                                    &rope,
-                                ));
+                                send_cmd(
+                                    *client_index,
+                                    DeleteCharRange(
+                                        cursor.position.clone(),
+                                        cursor
+                                            .selection_anchor
+                                            .clone()
+                                            .unwrap_or_else(|| cursor.position.clone()),
+                                    ),
+                                );
                             }
                             DeleteDirection::Before => {
-                                if cursor.position.x > 1 {
-                                    rope.remove(index - 1..index);
-                                    cursor.position.x -= 1
-                                }
+                                let Cursor { position, .. } = cursor;
+                                let delete_point = get_point_to_left(&position, rope);
+                                send_cmd(*client_index, MoveCursor(Direction::Left, false));
+                                send_cmd(
+                                    *client_index,
+                                    DeleteCharRange(delete_point.clone(), delete_point),
+                                );
                             }
                         }
                         send_cmd(*client_index, BufferModified);
@@ -293,6 +327,16 @@ pub fn update(
                         }
                         _ => {}
                     }
+                }
+                Yank => {
+                    if let Some(ref selection_anchor) = cursor.selection_anchor {
+                        let slice = rope.slice(get_char_range(&cursor.position, selection_anchor, rope));
+                        let string = String::from(slice);
+                        send_cmd(*client_index, YankValue(string));
+                    }
+                }
+                Paste => {
+                    send_cmd(*client_index, PasteAtPoint(cursor.position.clone()));
                 }
                 _ => {}
             }

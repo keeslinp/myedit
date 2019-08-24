@@ -1,9 +1,12 @@
 use notify::DebouncedEvent;
-use ropey::{Rope, RopeSlice};
+pub use ropey::{Rope, RopeSlice};
 pub use slotmap::{DefaultKey, KeyData, SecondaryMap, SlotMap};
 use std::os::unix::net::UnixStream;
 
 use termion::event::Event;
+
+mod commands;
+pub use commands::Cmd;
 
 pub type ClientIndex = DefaultKey;
 
@@ -93,25 +96,6 @@ pub struct RemoteCommand(pub ClientIndex, pub Cmd);
 #[derive(Debug, Deserialize, Serialize)]
 pub struct InitializeClient(pub ClientIndex);
 
-#[derive(Debug, Deserialize, Serialize)]
-pub enum Cmd {
-    MoveCursor(Direction, bool),
-    Quit,
-    Kill,
-    ChangeMode(Mode),
-    InsertChar(char),
-    DeleteChar(DeleteDirection),
-    Jump(JumpType),
-    RunCommand,
-    WriteBuffer(std::path::PathBuf),
-    LoadFile(std::path::PathBuf),
-    BufferLoaded,
-    BufferModified,
-    SearchFiles,
-    CleanRender,
-    ResizeClient(Rect),
-}
-
 #[derive(Debug)]
 pub struct Client {
     pub stream: UnixStream,
@@ -129,7 +113,7 @@ pub enum Msg {
     NewClient(UnixStream),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Default, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, PartialOrd, Serialize, Deserialize)]
 pub struct Point {
     pub y: u16,
     pub x: u16,
