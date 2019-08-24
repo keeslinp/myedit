@@ -39,7 +39,7 @@ impl Drop for DynLib {
     }
 }
 
-fn load_lib(path: &path::PathBuf) -> DynLib {
+fn load_lib(path: &path::PathBuf, global_data: &GlobalData) -> DynLib {
     let file_name = path.file_name().expect("getting lib name");
     let copy_path: path::PathBuf = [
         "./lib_copies",
@@ -56,11 +56,11 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
         let update_fn: libloading::Symbol<
             extern "C" fn(&mut GlobalData, &Msg, &Utils, &Box<Fn(ClientIndex, Cmd)>, *mut c_void),
         > = lib.get(b"update").expect("loading update function");
-        let init_fn: libloading::Symbol<extern "C" fn() -> *mut c_void> =
+        let init_fn: libloading::Symbol<extern "C" fn(&GlobalData) -> *mut c_void> =
             lib.get(b"init").expect("loading init function");
         let cleanup_fn: libloading::Symbol<extern "C" fn(*mut c_void)> =
             lib.get(b"cleanup").expect("loading cleanup function");
-        let data = init_fn();
+        let data = init_fn(global_data);
         DynLib {
             render_fn: render_fn.into_raw(),
             update_fn: update_fn.into_raw(),
@@ -76,7 +76,10 @@ fn load_lib(path: &path::PathBuf) -> DynLib {
 const LIB_LOC: &'static str = "./target/release";
 // #[cfg(not(debug_assertion))]
 
-fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
+fn load_libs(
+    watcher: &mut RecommendedWatcher,
+    global_data: &GlobalData,
+) -> HashMap<String, DynLib> {
     use std::fs::read_dir;
     read_dir(LIB_LOC)
         .expect("reading lib folder")
@@ -86,7 +89,7 @@ fn load_libs(watcher: &mut RecommendedWatcher) -> HashMap<String, DynLib> {
         .map(|path| {
             (
                 path.file_name().unwrap().to_str().unwrap().to_owned(),
-                load_lib(&path),
+                load_lib(&path, global_data),
             )
         })
         .collect()
@@ -168,18 +171,6 @@ fn setup_client_listener(msg_sender: Sender<Msg>) {
     });
 }
 
-// TODO: Figure this out
-// fn setup_signals_handler(msg_sender: Sender<Msg>) {
-//     use signal_hook::iterator::Signals;
-//     use signal_hook::SIGWINCH;
-//     let signals = Signals::new(&[SIGWINCH]).unwrap();
-//     std::thread::spawn(move || {
-//         for _ in signals.forever() {
-//             msg_sender.send(Msg::Cmd(Cmd::CleanRender));
-//         }
-//     });
-// }
-
 fn setup_logging() {
     let logfile = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
@@ -200,7 +191,7 @@ pub fn start(file: Option<std::path::PathBuf>) {
     let utils = utils::build_utils();
     let (msg_sender, msg_receiver) = unbounded::<Msg>();
     let mut watcher = setup_watcher(msg_sender.clone());
-    let mut libraries: HashMap<String, DynLib> = load_libs(&mut watcher);
+    let mut libraries: HashMap<String, DynLib> = load_libs(&mut watcher, &global_data);
 
     setup_external_socket(msg_sender.clone());
     setup_client_listener(msg_sender.clone());
@@ -222,7 +213,7 @@ pub fn start(file: Option<std::path::PathBuf>) {
                 DebouncedEvent::Create(ref path) => {
                     let key = path.file_name().unwrap().to_str().unwrap();
                     libraries.remove(key);
-                    let lib = load_lib(path);
+                    let lib = load_lib(path, &global_data);
                     libraries.insert(key.to_string(), lib);
                     info!("Reloaded lib: {}", &key);
                 }

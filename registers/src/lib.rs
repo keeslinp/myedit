@@ -20,7 +20,7 @@ pub fn render(
 
 #[no_mangle]
 pub fn update(
-    global_data: &mut GlobalData,
+    _global_data: &mut GlobalData,
     cmd: &Msg,
     _utils: &Utils,
     send_cmd: &Box<Fn(ClientIndex, Cmd)>,
@@ -29,17 +29,18 @@ pub fn update(
     let mut data: Box<State> = unsafe { Box::from_raw(data_ptr as *mut State) };
     use Cmd::*;
     match cmd {
-        Msg::Cmd(client_index, cmd) => {
-            match cmd {
-                YankValue(val) => {
-                    data.register = val.clone();
-                }
-                PasteAtPoint(position) => {
-                    send_cmd(*client_index, InsertStringAtPoint(data.register.clone(), position.clone()));
-                }
-                _ => {}
+        Msg::Cmd(client_index, cmd) => match cmd {
+            YankValue(val) => {
+                data.register = val.clone();
             }
-        }
+            PasteAtPoint(position) => {
+                send_cmd(
+                    *client_index,
+                    InsertStringAtPoint(data.register.clone(), position.clone()),
+                );
+            }
+            _ => {}
+        },
         _ => {}
     };
     std::mem::forget(data);
