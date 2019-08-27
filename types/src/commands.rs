@@ -2,6 +2,12 @@ use crate::{DeleteDirection, Direction, JumpType, Mode, Point, Rect};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
+pub enum SearchDirection {
+    Forward,
+    Backwards,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub enum Cmd {
     MoveCursor(Direction, bool),
     Quit,
@@ -10,6 +16,7 @@ pub enum Cmd {
     InsertChar(char),
     InsertCharAtPoint(char, Point),
     InsertStringAtPoint(String, Point),
+    SelectCharRange(Point, Point),
     DeleteCharRange(Point, Point),
     DeleteChar(DeleteDirection),
     Jump(JumpType),
@@ -25,4 +32,5 @@ pub enum Cmd {
     YankValue(String),
     Paste,
     PasteAtPoint(Point),
+    Search(SearchDirection),
 }

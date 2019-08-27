@@ -61,6 +61,9 @@ pub fn update(
                         ':' => {
                             send_cmd(*client, Cmd::ChangeMode(Mode::Command));
                         }
+                        '/' => {
+                            send_cmd(*client, Cmd::ChangeMode(Mode::Search));
+                        }
                         'y' => {
                             send_cmd(*client, Cmd::Yank);
                         }
@@ -89,6 +92,18 @@ pub fn update(
                 Mode::Command => match evt {
                     Event::Key(key) => match key {
                         Key::Char('\n') => send_cmd(*client, Cmd::RunCommand),
+                        Key::Char(c) => send_cmd(*client, Cmd::InsertChar(*c)),
+                        Key::Backspace => {
+                            send_cmd(*client, Cmd::DeleteChar(DeleteDirection::Before))
+                        }
+                        Key::Esc => send_cmd(*client, Cmd::ChangeMode(Mode::Normal)),
+                        _ => {}
+                    },
+                    _ => {}
+                },
+                Mode::Search => match evt {
+                    Event::Key(key) => match key {
+                        Key::Char('\n') => send_cmd(*client, Cmd::ChangeMode(Mode::Normal)),
                         Key::Char(c) => send_cmd(*client, Cmd::InsertChar(*c)),
                         Key::Backspace => {
                             send_cmd(*client, Cmd::DeleteChar(DeleteDirection::Before))

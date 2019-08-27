@@ -76,7 +76,6 @@ pub fn draw_diagnostics(
 ) {
     if let Ok(diagnostics) = analysis.diagnostics(file_id) {
         for diagnostic in diagnostics {
-            (utils.info)(&format!("diagnostic: {:?}", diagnostic));
             if let (Some(start_point), length) =
                 get_pos_len_from_text_range(diagnostic.range, buffer)
             {
@@ -117,9 +116,7 @@ fn draw_syntax_highlighting(
 ) {
     if let Ok(highlighted_ranges) = analysis.highlight(file_id) {
         for HighlightedRange { range, tag, .. } in highlighted_ranges {
-            (utils.info)(&format!("{:?} -> {}", range, tag));
             if let (Some(start_point), length) = get_pos_len_from_text_range(range, buffer) {
-                (utils.info)(&format!("start point: {:?}", start_point));
                 if start_point.y > client.size.as_ref().map(|s| s.h).unwrap_or(0) {
                     break;
                 }
@@ -183,7 +180,6 @@ pub fn update(
                 data.analysisHost.apply_change({
                     let mut change = AnalysisChange::new();
                     let new_source = std::sync::Arc::new(String::from(buffer.rope.clone()));
-                    (utils.info)(&format!("{}", new_source));
                     change.change_file(file_id_from_buffer_index(buffer_index), new_source);
                     change
                 });

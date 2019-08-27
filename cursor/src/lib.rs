@@ -53,6 +53,7 @@ fn write_mode_status(back_buffer: &mut BackBuffer, client: &Client, utils: &Util
             Mode::Normal => "NORMAL",
             Mode::Insert => "INSERT",
             Mode::Command => "COMMAND",
+            Mode::Search => "SEARCH",
         };
         (utils.write_to_buffer)(
             back_buffer,
@@ -128,17 +129,20 @@ pub fn render(
         rope,
         global_data.buffers[current_buffer].start_line,
     );
-    if global_data.clients[*client].mode != Mode::Command {
-        write!(
-            stream,
-            "{}{}",
-            Show,
-            Goto(
-                cursor.position.x + 4, // +4 for line numbers
-                cursor.position.y + 1 - global_data.buffers[current_buffer].start_line as u16
+    match global_data.clients[*client].mode {
+        Mode::Command | Mode::Search => {}
+        Mode::Normal | Mode::Insert => {
+            write!(
+                stream,
+                "{}{}",
+                Show,
+                Goto(
+                    cursor.position.x + 4, // +4 for line numbers
+                    cursor.position.y + 1 - global_data.buffers[current_buffer].start_line as u16
+                )
             )
-        )
-        .expect("Writing cursor position to client");
+            .expect("Writing cursor position to client");
+        }
     }
     std::mem::forget(data);
 }
@@ -274,8 +278,8 @@ pub fn update(
                     cursor.selection_anchor = None;
                 }
                 InsertChar(c) => match global_data.clients[*client_index].mode {
-                    Mode::Command => {}
-                    _ => {
+                    Mode::Command | Mode::Search => {}
+                    Mode::Normal | Mode::Insert => {
                         send_cmd(
                             *client_index,
                             InsertCharAtPoint(*c, cursor.position.clone()),
@@ -285,8 +289,8 @@ pub fn update(
                     }
                 },
                 DeleteChar(dir) => match global_data.clients[*client_index].mode {
-                    Mode::Command => {}
-                    _ => {
+                    Mode::Command | Mode::Search => {}
+                    Mode::Normal | Mode::Insert => {
                         match dir {
                             DeleteDirection::After => {
                                 send_cmd(

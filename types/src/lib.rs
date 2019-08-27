@@ -8,6 +8,9 @@ use termion::event::Event;
 mod commands;
 pub use commands::Cmd;
 
+mod modes;
+pub use modes::Mode;
+
 pub type ClientIndex = DefaultKey;
 
 pub type BufferIndex = DefaultKey;
@@ -53,13 +56,6 @@ pub struct Buffer {
     pub rope: Rope,
     pub source: std::path::PathBuf,
     pub start_line: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub enum Mode {
-    Normal,
-    Insert,
-    Command,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
