@@ -1,6 +1,5 @@
 use types::{
-    BackBuffer, Buffer, BufferIndex, Client, ClientIndex, Cmd, Color, DeleteDirection, Direction,
-    GlobalData, JumpType, Mode, Msg, Point, Rect, Rope, SecondaryMap, Utils,
+    BackBuffer, ClientIndex, Cmd, GlobalData, Msg, Point, Rope, Utils,
 };
 
 #[derive(Debug, Default)]
@@ -22,13 +21,13 @@ fn get_ropey_index_from_point(position: &Point, rope: &Rope) -> usize {
     rope.line_to_char(position.y as usize) + position.x as usize - 1
 }
 
-fn get_char_range(
-    position: &Point,
-    selection_anchor: &Point,
+fn get_char_range_from_points(
+    start: &Point,
+    end: &Point,
     rope: &Rope,
 ) -> std::ops::RangeInclusive<usize> {
-    let start_index = get_ropey_index_from_point(position, rope);
-    let end_index = get_ropey_index_from_point(selection_anchor, rope);
+    let start_index = get_ropey_index_from_point(start, rope);
+    let end_index = get_ropey_index_from_point(end, rope);
     if start_index < end_index {
         start_index..=end_index
     } else {
@@ -63,7 +62,7 @@ pub fn update(
                     send_cmd(*client_index, BufferModified);
                 }
                 DeleteCharRange(start, end) => {
-                    rope.remove(get_char_range(start, end, &rope));
+                    rope.remove(get_char_range_from_points(start, end, &rope));
                     send_cmd(*client_index, BufferModified);
                 }
                 _ => {}
@@ -86,5 +85,32 @@ pub fn cleanup(data: *mut c_void) {
     unsafe {
         let ptr = Box::from_raw(data);
         drop(ptr);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_first_line_get_ropey_index_from_point() {
+        let rope = Rope::from_str(
+            "test someting with \
+            lots of test data"
+        );
+        let point = Point {
+            x: 5,
+            y: 0,
+        };
+        assert_eq!(get_ropey_index_from_point(&point, &rope), 4);
+    }
+    #[test]
+    fn test_second_line_get_ropey_index_from_point() {
+        let rope = Rope::from_str( "test someting with \nlots of test data");
+        let point = Point {
+            x: 5,
+            y: 1,
+        };
+        assert_eq!(get_ropey_index_from_point(&point, &rope), 24);
     }
 }
