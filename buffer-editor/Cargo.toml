@@ -12,3 +12,6 @@ crate-type = ["dylib"]
 
 [dependencies]
 types = { path = "../types" }
+
+[dev-dependencies]
+crossbeam-channel="0.3.9"
