@@ -12,7 +12,7 @@ pub type ClientIndex = DefaultKey;
 
 pub type BufferIndex = DefaultKey;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct GlobalData {
     pub buffer_keys: SlotMap<BufferIndex, ()>,
     pub buffers: SecondaryMap<BufferIndex, Buffer>,
@@ -42,7 +42,7 @@ pub struct Cell {
     pub style: Option<Style>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BackBuffer {
     pub dim: Rect,
     pub cells: Vec<Cell>,
@@ -62,7 +62,7 @@ pub enum Mode {
     Command,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub enum Direction {
     Left,
     Right,
@@ -70,13 +70,13 @@ pub enum Direction {
     Down,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum DeleteDirection {
     Before,
     After,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum JumpType {
     EndOfLine,
     StartOfLine,
@@ -119,7 +119,7 @@ pub struct Point {
     pub x: u16,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize, Clone)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Rect {
     pub w: u16,
     pub h: u16,

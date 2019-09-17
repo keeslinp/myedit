@@ -1,7 +1,7 @@
 use crate::{DeleteDirection, Direction, JumpType, Mode, Point, Rect};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum Cmd {
     MoveCursor(Direction, bool),
     Quit,
